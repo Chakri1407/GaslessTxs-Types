@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Meta-Transaction PoC</title>
+    <script src="https://cdn.ethers.io/lib/ethers-5.7.umd.min.js"></script>
+</head>
+<body>
+    <h1>Meta-Transaction PoC</h1>
+    <input type="text" id="recipient" placeholder="Recipient Address" style="width: 300px;">
+    <input type="number" id="amount" placeholder="Amount (MATIC)" step="0.01" style="width: 150px;">
+    <button id="signButton" onclick="signAndSend()">Sign and Send Transaction</button>
+    <p id="status">Status: Waiting...</p>
+
+    <script>
+        const contractAddress = "0xF741BA03d933e252790B606036B2525b99eBF793"; // MetaTransaction address
+        const abi = [
+            "function nonces(address) view returns (uint256)",
+            "function executeMetaTransaction(address user, address to, uint256 value, bytes memory signature) returns (bytes memory)"
+        ];
+
+        async function signAndSend() {
+            if (!window.ethereum) {
+                document.getElementById("status").innerText = "Status: MetaMask not detected";
+                return;
+            }
+
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            await provider.send("eth_requestAccounts", []); // Request account access
+            const signer = provider.getSigner();
+            const userAddress = await signer.getAddress();
+            const recipient = document.getElementById("recipient").value;
+            const amount = ethers.utils.parseEther(document.getElementById("amount").value || "0");
+
+            if (!ethers.utils.isAddress(recipient)) {
+                document.getElementById("status").innerText = "Status: Invalid recipient address";
+                return;
+            }
+
+            const contract = new ethers.Contract(contractAddress, abi, signer);
+            const nonce = await contract.nonces(userAddress);
+
+            const domain = {
+                name: "MetaTransaction",
+                version: "1",
+                chainId: 80002,
+                verifyingContract: contractAddress
+            };
+            const types = {
+                MetaTx: [
+                    { name: "from", type: "address" },
+                    { name: "to", type: "address" },
+                    { name: "value", type: "uint256" },
+                    { name: "nonce", type: "uint256" }
+                ]
+            };
+            const message = {
+                from: userAddress,
+                to: recipient,
+                value: amount.toString(),
+                nonce: nonce.toString()
+            };
+
+            try {
+                const signature = await signer._signTypedData(domain, types, message);
+                document.getElementById("status").innerText = "Status: Signed! Submitting transaction...";
+
+                const tx = await contract.executeMetaTransaction(userAddress, recipient, amount, signature, {
+                    gasLimit: 500000
+                });
+                const receipt = await tx.wait();
+                document.getElementById("status").innerText = `Status: Success! Tx Hash: ${receipt.transactionHash}`;
+            } catch (error) {
+                document.getElementById("status").innerText = `Status: Error - ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html> 

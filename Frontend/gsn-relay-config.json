@@ -1,0 +1,7 @@
+{
+  "relayHubAddress": "0x4a348b3e4B0A3AA291168844046321809c5B5824",
+  "managerStakeTokenAddress": "0x1b3b758aF9DDd0D442CC7815c1E52d20abC96471",
+  "ownerAddress": "0xe8239aFA5Cc7Ec80d27713A60D2E50facbeA3BC0",
+  "gasPriceFactor": 1,
+  "ethereumNodeUrl": "${RPC_URL}"
+} 

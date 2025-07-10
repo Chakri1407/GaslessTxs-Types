@@ -1,0 +1,7 @@
+{
+  "GaslessTxModule#MetaTransaction": "0xF741BA03d933e252790B606036B2525b99eBF793",
+  "GaslessTxModule#MinimalForwarder": "0x8A54082F2bC932922FC796F7f3B86DABDBceE0C8",
+  "GaslessTxModule#RelayHub": "0x4a348b3e4B0A3AA291168844046321809c5B5824",
+  "GaslessTxModule#StakeToken": "0x1b3b758aF9DDd0D442CC7815c1E52d20abC96471",
+  "GaslessTxModule#AcceptEverythingPaymaster": "0xfD6F92c1923E307D64C36a2FD6b08472Edd4c227"
+}
