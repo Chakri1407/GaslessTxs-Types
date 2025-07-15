@@ -1,0 +1,39 @@
+{
+    "name": "gasless-transaction-system",
+    "version": "1.0.0",
+    "description": "Production-ready gasless transaction system",
+    "main": "src/server/server.js",
+    "scripts": {
+        "start": "node src/server/server.js",
+        "dev": "nodemon src/server/server.js",
+        "test": "jest",
+        "deploy": "hardhat run ignition/modules/deploy.js --network amoy",
+        "verify": "hardhat verify --network amoy",
+        "lint": "eslint .",
+        "docker:build": "docker build -t gasless-relayer .",
+        "docker:run": "docker run -p 3000:3000 gasless-relayer"
+    },
+    "dependencies": {
+        "express": "^4.18.2",
+        "cors": "^2.8.5",
+        "helmet": "^7.0.0",
+        "express-rate-limit": "^6.7.0",
+        "ethers": "^6.6.0",
+        "redis": "^4.6.7",
+        "winston": "^3.9.0",
+        "jsonwebtoken": "^9.0.0",
+        "express-validator": "^7.0.1",
+        "dotenv": "^16.1.4"
+    },
+    "devDependencies": {
+        "nodemon": "^2.0.22",
+        "jest": "^29.5.0",
+        "supertest": "^6.3.3",
+        "hardhat": "^2.14.0",
+        "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+        "@nomicfoundation/hardhat-ignition": "^0.15.0",
+        "@nomicfoundation/hardhat-verify": "^2.0.0",
+        "@openzeppelin/contracts": "^4.9.0",
+        "eslint": "^8.42.0"
+    }
+} 

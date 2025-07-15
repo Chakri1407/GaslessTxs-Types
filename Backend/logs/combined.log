@@ -1,0 +1,6 @@
+{"level":"info","message":"Relayer server running on port 3000","timestamp":"2025-07-15T09:55:22.558Z"}
+{"code":"ECONNREFUSED","level":"error","message":"Redis connection error:","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1117:18)\n    at afterConnectMultiple (node:net:1684:7)","timestamp":"2025-07-15T09:55:22.574Z"}
+{"level":"info","message":"Relayer server running on port 3000","timestamp":"2025-07-15T10:09:03.777Z"}
+{"level":"info","message":"Relayer server running on port 3000","timestamp":"2025-07-15T10:09:41.365Z"}
+{"code":"ECONNREFUSED","level":"error","message":"Redis connection error:","stack":"AggregateError [ECONNREFUSED]: \n    at internalConnectMultiple (node:net:1117:18)\n    at afterConnectMultiple (node:net:1684:7)","timestamp":"2025-07-15T10:09:41.373Z"}
+{"level":"info","message":"Relayer server running on port 3000","timestamp":"2025-07-15T10:09:51.093Z"}
