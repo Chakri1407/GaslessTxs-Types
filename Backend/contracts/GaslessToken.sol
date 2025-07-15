@@ -40,7 +40,6 @@ contract GaslessToken is ERC20, Ownable, ReentrancyGuard, EIP712 {
         address owner
     ) ERC20(name, symbol) Ownable(owner) EIP712(name, "1") {
         _mint(owner, initialSupply);
-        // Remove _transferOwnership(owner) since Ownable constructor already sets the owner
     }
     
     function authorizeRelayer(address relayer) external onlyOwner {
@@ -89,10 +88,10 @@ contract GaslessToken is ERC20, Ownable, ReentrancyGuard, EIP712 {
         
         _nonces[userAddress] = nonce + 1;
         
-        (bool success, bytes memory returnData) = address(this).call(
-            abi.encodePacked(functionSignature, userAddress)
-        );
+        // FIXED: Append user address to function signature for _msgSender() to work correctly
+        bytes memory callData = abi.encodePacked(functionSignature, userAddress);
         
+        (bool success, bytes memory returnData) = address(this).call(callData);
         if (!success) {
             revert ExecutionFailed();
         }
