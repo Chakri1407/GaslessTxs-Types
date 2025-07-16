@@ -3,9 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gasless Transaction POC </title>
+    <title>Gasless Transaction Manager</title>
+    <meta name="description" content="Secure gasless transaction manager for ERC20 tokens">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js"></script>
     <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --secondary-color: #10b981;
+            --secondary-hover: #059669;
+            --danger-color: #ef4444;
+            --danger-hover: #dc2626;
+            --warning-color: #f59e0b;
+            --warning-hover: #d97706;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            --success-bg: #dcfce7;
+            --success-border: #bbf7d0;
+            --success-text: #166534;
+            --error-bg: #fef2f2;
+            --error-border: #fecaca;
+            --error-text: #991b1b;
+            --warning-bg: #fffbeb;
+            --warning-border: #fed7aa;
+            --warning-text: #92400e;
+            --info-bg: #eff6ff;
+            --info-border: #bfdbfe;
+            --info-text: #1e40af;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --border-radius: 8px;
+            --transition: all 0.15s ease-in-out;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -13,313 +52,643 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, var(--gray-50) 0%, var(--gray-100) 100%);
             min-height: 100vh;
-            padding: 20px;
+            color: var(--gray-900);
+            line-height: 1.6;
         }
 
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            overflow: hidden;
+            padding: 20px;
         }
 
         .header {
-            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
             color: white;
-            padding: 30px;
+            padding: 2rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 2rem;
             text-align: center;
+            box-shadow: var(--shadow-md);
         }
 
         .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
         }
 
-        .main-content {
-            padding: 40px;
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
         }
 
         .section {
-            background: #fff;
-            border: 1px solid #eee;
-            border-radius: 12px;
-            padding: 25px;
-            margin-bottom: 25px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--gray-200);
         }
 
         .section h2 {
-            color: #2c3e50;
-            margin-bottom: 20px;
-            font-size: 1.5em;
-            border-bottom: 2px solid #e74c3c;
-            padding-bottom: 10px;
+            color: var(--gray-800);
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+            font-weight: 600;
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .grid {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .grid-2 {
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 1.5rem;
         }
 
-        label {
+        .form-label {
             display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #34495e;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--gray-700);
+            font-size: 0.875rem;
         }
 
-        input, textarea {
+        .form-input {
             width: 100%;
-            padding: 12px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 14px;
-            transition: border-color 0.3s ease;
+            padding: 0.75rem;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            transition: var(--transition);
+            background: white;
         }
 
-        textarea {
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .form-input[type="password"] {
+            font-family: 'Courier New', monospace;
+        }
+
+        .form-textarea {
             min-height: 100px;
             resize: vertical;
             font-family: 'Courier New', monospace;
         }
 
-        input:focus, textarea:focus {
-            outline: none;
-            border-color: #e74c3c;
-            box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1);
-        }
-
         .btn {
-            background: linear-gradient(135deg, #e74c3c, #c0392b);
-            color: white;
-            padding: 12px 24px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
             border: none;
-            border-radius: 8px;
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            font-weight: 500;
             cursor: pointer;
-            font-size: 16px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            margin-right: 10px;
-            margin-bottom: 10px;
+            transition: var(--transition);
+            text-decoration: none;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
         }
 
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 12px rgba(231, 76, 60, 0.3);
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-secondary {
+            background: var(--secondary-color);
+            color: white;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: var(--secondary-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: var(--danger-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: white;
+        }
+
+        .btn-warning:hover:not(:disabled) {
+            background: var(--warning-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--gray-300);
+            color: var(--gray-700);
+        }
+
+        .btn-outline:hover:not(:disabled) {
+            background: var(--gray-50);
+            border-color: var(--gray-400);
         }
 
         .btn:disabled {
-            background: #bdc3c7;
+            opacity: 0.6;
             cursor: not-allowed;
             transform: none;
-            box-shadow: none;
         }
 
-        .btn.secondary {
-            background: linear-gradient(135deg, #3498db, #2980b9);
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.75rem;
         }
 
-        .btn.secondary:hover {
-            box-shadow: 0 6px 12px rgba(52, 152, 219, 0.3);
+        .alert {
+            padding: 1rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 1rem;
+            border: 1px solid;
         }
 
-        .btn.success {
-            background: linear-gradient(135deg, #27ae60, #229954);
+        .alert-success {
+            background: var(--success-bg);
+            border-color: var(--success-border);
+            color: var(--success-text);
         }
 
-        .btn.success:hover {
-            box-shadow: 0 6px 12px rgba(39, 174, 96, 0.3);
+        .alert-error {
+            background: var(--error-bg);
+            border-color: var(--error-border);
+            color: var(--error-text);
         }
 
-        .result {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            padding: 15px;
-            margin-top: 15px;
+        .alert-warning {
+            background: var(--warning-bg);
+            border-color: var(--warning-border);
+            color: var(--warning-text);
+        }
+
+        .alert-info {
+            background: var(--info-bg);
+            border-color: var(--info-border);
+            color: var(--info-text);
+        }
+
+        .code-block {
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--border-radius);
+            padding: 1rem;
             font-family: 'Courier New', monospace;
-            font-size: 14px;
+            font-size: 0.875rem;
             white-space: pre-wrap;
             word-break: break-all;
-            max-height: 400px;
+            max-height: 300px;
             overflow-y: auto;
-        }
-
-        .result.success {
-            background: #d4edda;
-            border-color: #c3e6cb;
-            color: #155724;
-        }
-
-        .result.error {
-            background: #f8d7da;
-            border-color: #f5c6cb;
-            color: #721c24;
-        }
-
-        .result.warning {
-            background: #fff3cd;
-            border-color: #ffeaa7;
-            color: #856404;
-        }
-
-        .diagnostic-item {
-            background: #f8f9fa;
-            border-left: 4px solid #e74c3c;
-            padding: 15px;
-            margin-bottom: 15px;
-            border-radius: 0 8px 8px 0;
-        }
-
-        .diagnostic-item h4 {
-            color: #2c3e50;
-            margin-bottom: 10px;
-        }
-
-        .status-good {
-            border-left-color: #27ae60;
-        }
-
-        .status-bad {
-            border-left-color: #e74c3c;
-        }
-
-        .status-warning {
-            border-left-color: #f39c12;
-        }
-
-        .gasless-section {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            margin-top: 0.5rem;
         }
 
         .loading {
-            opacity: 0.7;
+            opacity: 0.6;
             pointer-events: none;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top: 2px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         .progress-bar {
             width: 100%;
             height: 4px;
-            background: #f0f0f0;
+            background: var(--gray-200);
             border-radius: 2px;
             overflow: hidden;
-            margin: 10px 0;
+            margin: 1rem 0;
         }
 
         .progress-fill {
             height: 100%;
-            background: linear-gradient(90deg, #e74c3c, #c0392b);
+            background: linear-gradient(90deg, var(--primary-color), var(--primary-hover));
             width: 0%;
             transition: width 0.3s ease;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .status-success {
+            background: var(--success-bg);
+            color: var(--success-text);
+        }
+
+        .status-error {
+            background: var(--error-bg);
+            color: var(--error-text);
+        }
+
+        .status-warning {
+            background: var(--warning-bg);
+            color: var(--warning-text);
+        }
+
+        .status-info {
+            background: var(--info-bg);
+            color: var(--info-text);
+        }
+
+        .card {
+            background: white;
+            border: 1px solid var(--gray-200);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .card-header {
+            font-weight: 600;
+            color: var(--gray-800);
+            margin-bottom: 1rem;
+        }
+
+        .input-group {
+            position: relative;
+        }
+
+        .input-group .form-input {
+            padding-right: 2.5rem;
+        }
+
+        .input-group .btn {
+            position: absolute;
+            right: 0.25rem;
+            top: 50%;
+            transform: translateY(-50%);
+            padding: 0.25rem 0.5rem;
+            min-width: auto;
+        }
+
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 200px;
+            background-color: var(--gray-800);
+            color: white;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px 10px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.75rem;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--danger-color);
+        }
+
+        .connection-dot.connected {
+            background: var(--secondary-color);
+        }
+
+        .security-warning {
+            background: var(--warning-bg);
+            border: 1px solid var(--warning-border);
+            color: var(--warning-text);
+            padding: 1rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 1rem;
+        }
+
+        .security-warning h4 {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .network-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .network-info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .network-info-label {
+            font-size: 0.75rem;
+            color: var(--gray-500);
+            margin-bottom: 0.25rem;
+        }
+
+        .network-info-value {
+            font-weight: 500;
+            color: var(--gray-800);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .section {
+                padding: 1.5rem;
+            }
+            
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+            
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🔍 Gasless Transaction POC</h1>
-           
+            <h1>⚡ Gasless Transaction Manager</h1>
+            <p>Secure meta-transaction interface for ERC20 tokens</p>
         </div>
 
-        <div class="main-content">
-            <div class="section">
-                <h2>📋 Configuration</h2>
-                <div class="form-group">
-                    <label for="contractAddress">Contract Address:</label>
-                    <input type="text" id="contractAddress" value="0xd699187d5C26Ee6e85B0CEd886AeE676371B4574" />
-                </div>
-                <div class="form-group">
-                    <label for="rpcUrl">RPC URL:</label>
-                    <input type="text" id="rpcUrl" value="https://polygon-amoy.g.alchemy.com/v2/fgPCE8UqEyFS3PnmIvAz6" />
-                </div>
-                <button class="btn" onclick="runDiagnostics()">🔍 Run Full Diagnostics</button>
-                <button class="btn secondary" onclick="runGaslessDiagnostics()">⚡ Run Gasless Diagnostics</button>
-                <button class="btn" onclick="checkBasicContract()">📋 Basic Contract Check</button>
-                <button class="btn" onclick="checkContractCode()">💻 Check Contract Code</button>
+        <!-- Network Status -->
+        <div class="section">
+            <h2>🌐 Network Status</h2>
+            <div class="connection-status">
+                <div class="connection-dot" id="connectionDot"></div>
+                <span id="connectionStatus">Disconnected</span>
             </div>
-
-            <div class="section gasless-section">
-                <h2>⚡ Gasless Transaction Testing</h2>
-                <div class="form-group">
-                    <label for="userPrivateKey">User Private Key (for signing):</label>
-                    <input type="password" id="userPrivateKey" placeholder="0x... (keep this secure)" />
-                </div>
-                <div class="form-group">
-                    <label for="relayerPrivateKey">Relayer Private Key (for executing):</label>
-                    <input type="password" id="relayerPrivateKey" placeholder="0x... (keep this secure)" />
-                </div>
-                <div class="form-group">
-                    <label for="recipientAddress">Recipient Address (for test transfer):</label>
-                    <input type="text" id="recipientAddress" placeholder="0x..." />
-                </div>
-                <div class="form-group">
-                    <label for="transferAmount">Transfer Amount (in wei):</label>
-                    <input type="text" id="transferAmount" value="1000000000000000000" />
-                </div>
-                <button class="btn success" onclick="testGaslessTransfer()">🚀 Test Gasless Transfer</button>
-                <button class="btn secondary" onclick="generateTestWallets()">🔑 Generate Test Wallets</button>
-                <button class="btn" onclick="checkRelayerStatus()">🔍 Check Relayer Status</button>
-                <button class="btn" onclick="authorizeRelayer()">✅ Authorize Relayer</button>
-                <button class="btn" onclick="mintTokensToUser()">🪙 Mint Tokens to User</button>
-                <div id="gaslessResults" class="result"></div>
+            <div class="network-info" id="networkInfo">
+                <!-- Network info will be populated here -->
             </div>
+        </div>
 
-            <div class="section">
-                <h2>🔧 Meta-Transaction Tools</h2>
+        <!-- Configuration -->
+        <div class="section">
+            <h2>⚙️ Configuration</h2>
+            <div class="grid grid-2">
                 <div class="form-group">
-                    <label for="functionData">Function Data (hex):</label>
-                    <textarea id="functionData" placeholder="0xa9059cbb000000000000000000000000..."></textarea>
+                    <label class="form-label" for="contractAddress">Contract Address</label>
+                    <input type="text" 
+                           id="contractAddress" 
+                           class="form-input" 
+                           value="0xd699187d5C26Ee6e85B0CEd886AeE676371B4574"
+                           placeholder="0x..."
+                           required>
                 </div>
                 <div class="form-group">
-                    <label for="userAddress">User Address:</label>
-                    <input type="text" id="userAddress" placeholder="0x..." />
+                    <label class="form-label" for="rpcUrl">RPC URL</label>
+                    <input type="url" 
+                           id="rpcUrl" 
+                           class="form-input" 
+                           value="https://polygon-amoy.g.alchemy.com/v2/fgPCE8UqEyFS3PnmIvAz6"
+                           placeholder="https://..."
+                           required>
                 </div>
-                <button class="btn" onclick="generateMetaTxSignature()">✏️ Generate Meta-Transaction Signature</button>
-                <button class="btn secondary" onclick="verifyMetaTxSignature()">✅ Verify Signature</button>
-                <button class="btn" onclick="getMetaTxHash()">🔗 Get Meta-Transaction Hash</button>
-                <button class="btn" onclick="simulateMetaTx()">🧪 Simulate Meta-Transaction</button>
-                <div id="metaTxResults" class="result"></div>
             </div>
-
-            <div class="section">
-                <h2>🔍 Diagnostic Results</h2>
-                <div id="diagnosticResults"></div>
+            <div class="form-group">
+                <button class="btn btn-primary" onclick="connectToNetwork()">
+                    <span class="spinner" id="connectSpinner" style="display: none;"></span>
+                    Connect to Network
+                </button>
+                <button class="btn btn-outline" onclick="validateContract()">Validate Contract</button>
             </div>
+            <div id="configResults"></div>
+        </div>
 
-            <div class="section">
-                <h2>🔧 Manual Function Calls</h2>
-                <button class="btn" onclick="callName()">Call name()</button>
-                <button class="btn" onclick="callSymbol()">Call symbol()</button>
-                <button class="btn" onclick="callDecimals()">Call decimals()</button>
-                <button class="btn" onclick="callTotalSupply()">Call totalSupply()</button>
-                <button class="btn" onclick="callDomainSeparator()">Call DOMAIN_SEPARATOR()</button>
-                <button class="btn" onclick="callGetChainId()">Call getChainId()</button>
-                <button class="btn" onclick="callNonces()">Call nonces()</button>
-                <div id="manualResults" class="result"></div>
+        <!-- Security Warning -->
+        <div class="security-warning">
+            <h4>🔒 Security Notice</h4>
+            <p>This application handles private keys for demonstration purposes. In production, use secure key management solutions like hardware wallets or key management services. Never share your private keys.</p>
+        </div>
+
+        <!-- Wallet Management -->
+        <div class="section">
+            <h2>👛 Wallet Management</h2>
+            <div class="grid grid-2">
+                <div class="card">
+                    <div class="card-header">User Wallet</div>
+                    <div class="form-group">
+                        <label class="form-label" for="userPrivateKey">Private Key</label>
+                        <div class="input-group">
+                            <input type="password" 
+                                   id="userPrivateKey" 
+                                   class="form-input" 
+                                   placeholder="0x..."
+                                   autocomplete="off">
+                            <button class="btn btn-sm btn-outline" onclick="toggleVisibility('userPrivateKey')">👁️</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Address</label>
+                        <div class="code-block" id="userAddress">Not connected</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Token Balance</label>
+                        <div class="code-block" id="userBalance">-</div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">Relayer Wallet</div>
+                    <div class="form-group">
+                        <label class="form-label" for="relayerPrivateKey">Private Key</label>
+                        <div class="input-group">
+                            <input type="password" 
+                                   id="relayerPrivateKey" 
+                                   class="form-input" 
+                                   placeholder="0x..."
+                                   autocomplete="off">
+                            <button class="btn btn-sm btn-outline" onclick="toggleVisibility('relayerPrivateKey')">👁️</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Address</label>
+                        <div class="code-block" id="relayerAddress">Not connected</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Authorization Status</label>
+                        <div id="relayerStatus">
+                            <span class="status-indicator status-error">Not Authorized</span>
+                        </div>
+                    </div>
+                </div>
             </div>
+            
+            <div class="form-group">
+                <button class="btn btn-secondary" onclick="generateTestWallets()">🔑 Generate Test Wallets</button>
+                <button class="btn btn-outline" onclick="updateWalletInfo()">🔄 Refresh Wallet Info</button>
+            </div>
+        </div>
 
-            <div class="section">
-                <h2>🌐 Network Information</h2>
-                <button class="btn" onclick="getNetworkInfo()">Get Network Info</button>
-                <button class="btn secondary" onclick="checkBlockNumber()">Check Block Number</button>
-                <button class="btn" onclick="checkGasPrice()">Check Gas Price</button>
-                <div id="networkResults" class="result"></div>
+        <!-- Gasless Transaction -->
+        <div class="section">
+            <h2>⚡ Gasless Transaction</h2>
+            <div class="grid grid-2">
+                <div class="form-group">
+                    <label class="form-label" for="recipientAddress">Recipient Address</label>
+                    <input type="text" 
+                           id="recipientAddress" 
+                           class="form-input" 
+                           placeholder="0x..."
+                           required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="transferAmount">Amount (in tokens)</label>
+                    <input type="number" 
+                           id="transferAmount" 
+                           class="form-input" 
+                           step="0.000000000000000001"
+                           min="0"
+                           placeholder="1.0"
+                           required>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <button class="btn btn-primary" onclick="executeGaslessTransfer()" id="executeBtn">
+                    <span class="spinner" id="executeSpinner" style="display: none;"></span>
+                    Execute Gasless Transfer
+                </button>
+                <button class="btn btn-outline" onclick="simulateTransfer()">🧪 Simulate Transfer</button>
+            </div>
+            
+            <div id="gaslessResults"></div>
+        </div>
+
+        <!-- Admin Tools -->
+        <div class="section">
+            <h2>🛠️ Admin Tools</h2>
+            <div class="form-group">
+                <label class="form-label" for="ownerPrivateKey">Owner Private Key</label>
+                <div class="input-group">
+                    <input type="password" 
+                           id="ownerPrivateKey" 
+                           class="form-input" 
+                           placeholder="0x..."
+                           autocomplete="off">
+                    <button class="btn btn-sm btn-outline" onclick="toggleVisibility('ownerPrivateKey')">👁️</button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <button class="btn btn-warning" onclick="authorizeRelayer()">
+                    <span class="spinner" id="authorizeSpinner" style="display: none;"></span>
+                    Authorize Relayer
+                </button>
+                <button class="btn btn-secondary" onclick="mintTokens()">
+                    <span class="spinner" id="mintSpinner" style="display: none;"></span>
+                    Mint Test Tokens
+                </button>
+                <button class="btn btn-danger" onclick="revokeRelayer()">Revoke Relayer</button>
+            </div>
+            
+            <div id="adminResults"></div>
+        </div>
+
+        <!-- Transaction History -->
+        <div class="section">
+            <h2>📋 Transaction History</h2>
+            <div id="transactionHistory">
+                <p class="text-gray-500">No transactions yet</p>
             </div>
         </div>
     </div>
 
     <script>
-        let provider;
-        let contractAddress;
-        let rpcUrl;
+        // Application state
+        const AppState = {
+            provider: null,
+            contract: null,
+            networkInfo: null,
+            isConnected: false,
+            transactions: [],
+            config: {
+                contractAddress: '',
+                rpcUrl: ''
+            }
+        };
 
-        // Your custom contract ABI
-        const FULL_ABI = [
+        // Contract ABI
+        const CONTRACT_ABI = [
             "function name() view returns (string)",
             "function symbol() view returns (string)",
             "function decimals() view returns (uint8)",
@@ -339,881 +708,720 @@
             "function getChainId() view returns (uint256)",
             "function mint(address to, uint256 amount)",
             "function burn(uint256 amount)",
-            "function permitNonces(address owner) view returns (uint256)",
-            "function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)",
-            "function batchTransfer(address[] calldata recipients, uint256[] calldata amounts)",
-            "function owner() view returns (address)"
+            "function owner() view returns (address)",
+            "event Transfer(address indexed from, address indexed to, uint256 value)",
+            "event Approval(address indexed owner, address indexed spender, uint256 value)",
+            "event MetaTransactionExecuted(address userAddress, address relayerAddress, bytes functionSignature)"
         ];
 
-        // Minimal ABI for testing
-        const MINIMAL_ABI = [
-            "function name() view returns (string)",
-            "function symbol() view returns (string)",
-            "function decimals() view returns (uint8)",
-            "function totalSupply() view returns (uint256)"
-        ];
+        // Utility functions
+        const Utils = {
+            formatAddress: (address) => {
+                if (!address) return 'N/A';
+                return `${address.slice(0, 6)}...${address.slice(-4)}`;
+            },
 
-        // ERC20 ABI
-        const ERC20_ABI = [
-            "function name() view returns (string)",
-            "function symbol() view returns (string)", 
-            "function decimals() view returns (uint8)",
-            "function totalSupply() view returns (uint256)",
-            "function balanceOf(address) view returns (uint256)"
-        ];
+            formatTokenAmount: (amount, decimals = 18) => {
+                if (!amount) return '0';
+                return ethers.formatUnits(amount, decimals);
+            },
 
-        function updateConfig() {
-            contractAddress = document.getElementById('contractAddress').value;
-            rpcUrl = document.getElementById('rpcUrl').value;
-            
-            if (rpcUrl) {
-                provider = new ethers.JsonRpcProvider(rpcUrl);
-            }
-        }
+            parseTokenAmount: (amount, decimals = 18) => {
+                if (!amount) return '0';
+                return ethers.parseUnits(amount.toString(), decimals);
+            },
 
-        function showResult(elementId, message, type = 'success') {
-            const element = document.getElementById(elementId);
-            element.className = `result ${type}`;
-            element.textContent = message;
-        }
+            showAlert: (elementId, message, type = 'info') => {
+                const element = document.getElementById(elementId);
+                if (!element) return;
 
-        function showGaslessResult(message, type = 'success') {
-            showResult('gaslessResults', message, type);
-        }
-
-        function showMetaTxResult(message, type = 'success') {
-            showResult('metaTxResults', message, type);
-        }
-
-        function showManualResult(message, type = 'success') {
-            showResult('manualResults', message, type);
-        }
-
-        function showNetworkResult(message, type = 'success') {
-            showResult('networkResults', message, type);
-        }
-
-        function displayDiagnostics(diagnostics) {
-            const resultsDiv = document.getElementById('diagnosticResults');
-            resultsDiv.innerHTML = '';
-            
-            diagnostics.forEach(diagnostic => {
-                const div = document.createElement('div');
-                div.className = `diagnostic-item status-${diagnostic.status}`;
-                div.innerHTML = `
-                    <h4>${diagnostic.title}</h4>
-                    <p>${diagnostic.message}</p>
+                element.innerHTML = `
+                    <div class="alert alert-${type}">
+                        ${message}
+                    </div>
                 `;
-                resultsDiv.appendChild(div);
-            });
+            },
+
+            showSpinner: (spinnerId, show = true) => {
+                const spinner = document.getElementById(spinnerId);
+                if (spinner) {
+                    spinner.style.display = show ? 'inline-block' : 'none';
+                }
+            },
+
+            validateAddress: (address) => {
+                try {
+                    return ethers.isAddress(address);
+                } catch {
+                    return false;
+                }
+            },
+
+            validatePrivateKey: (privateKey) => {
+                try {
+                    new ethers.Wallet(privateKey);
+                    return true;
+                } catch {
+                    return false;
+                }
+            },
+
+            getWalletFromPrivateKey: (privateKey) => {
+                try {
+                    return new ethers.Wallet(privateKey);
+                } catch (error) {
+                    throw new Error('Invalid private key');
+                }
+            },
+
+            addTransaction: (tx) => {
+                AppState.transactions.unshift({
+                    ...tx,
+                    timestamp: new Date().toISOString()
+                });
+                updateTransactionHistory();
+            }
+        };
+
+        // Network management
+        async function connectToNetwork() {
+            try {
+                Utils.showSpinner('connectSpinner', true);
+                updateConnectionStatus('Connecting...', false);
+
+                const contractAddress = document.getElementById('contractAddress').value.trim();
+                const rpcUrl = document.getElementById('rpcUrl').value.trim();
+
+                // Validate inputs
+                if (!contractAddress || !rpcUrl) {
+                    throw new Error('Please provide both contract address and RPC URL');
+                }
+
+                if (!Utils.validateAddress(contractAddress)) {
+                    throw new Error('Invalid contract address');
+                }
+
+                // Update config
+                AppState.config.contractAddress = contractAddress;
+                AppState.config.rpcUrl = rpcUrl;
+
+                // Create provider
+                AppState.provider = new ethers.JsonRpcProvider(rpcUrl);
+
+                // Test connection
+                const network = await AppState.provider.getNetwork();
+                AppState.networkInfo = {
+                    name: network.name,
+                    chainId: network.chainId.toString(),
+                    blockNumber: await AppState.provider.getBlockNumber()
+                };
+
+                // Create contract instance
+                AppState.contract = new ethers.Contract(contractAddress, CONTRACT_ABI, AppState.provider);
+
+                // Test contract
+                await AppState.contract.name();
+
+                AppState.isConnected = true;
+                updateConnectionStatus('Connected', true);
+                updateNetworkInfo();
+                Utils.showAlert('configResults', '✅ Successfully connected to network and contract!', 'success');
+
+            } catch (error) {
+                AppState.isConnected = false;
+                updateConnectionStatus('Connection Failed', false);
+                Utils.showAlert('configResults', `❌ Connection failed: ${error.message}`, 'error');
+            } finally {
+                Utils.showSpinner('connectSpinner', false);
+            }
         }
 
-        async function runDiagnostics() {
-            updateConfig();
-            
-            const resultsDiv = document.getElementById('diagnosticResults');
-            resultsDiv.innerHTML = '<p>Running diagnostics...</p>';
-            
-            const diagnostics = [];
-            
-            // Check 1: RPC Connection
-            try {
-                const network = await provider.getNetwork();
-                diagnostics.push({
-                    title: "RPC Connection",
-                    status: "good",
-                    message: `Connected to ${network.name} (Chain ID: ${network.chainId})`
-                });
-            } catch (error) {
-                diagnostics.push({
-                    title: "RPC Connection",
-                    status: "bad",
-                    message: `Failed to connect to RPC: ${error.message}`
-                });
+        async function validateContract() {
+            if (!AppState.isConnected) {
+                Utils.showAlert('configResults', '❌ Please connect to network first', 'error');
+                return;
             }
 
-            // Check 2: Contract Exists
             try {
-                const code = await provider.getCode(contractAddress);
-                if (code === '0x') {
-                    diagnostics.push({
-                        title: "Contract Deployment",
-                        status: "bad",
-                        message: "No contract code found at the given address. Contract may not be deployed."
-                    });
-                } else {
-                    diagnostics.push({
-                        title: "Contract Deployment",
-                        status: "good",
-                        message: `Contract code found (${code.length} bytes)`
-                    });
-                }
-            } catch (error) {
-                diagnostics.push({
-                    title: "Contract Deployment",
-                    status: "bad",
-                    message: `Error checking contract: ${error.message}`
-                });
-            }
-
-            // Check 3: Basic ERC20 Functions
-            const abis = [
-                { name: "Minimal ABI", abi: MINIMAL_ABI },
-                { name: "ERC20 ABI", abi: ERC20_ABI },
-                { name: "Full Contract ABI", abi: FULL_ABI }
-            ];
-
-            for (const { name, abi } of abis) {
-                try {
-                    const contract = new ethers.Contract(contractAddress, abi, provider);
-                    const nameResult = await contract.name();
-                    diagnostics.push({
-                        title: `${name} - name() Function`,
-                        status: "good",
-                        message: `Successfully called name(): "${nameResult}"`
-                    });
-                } catch (error) {
-                    diagnostics.push({
-                        title: `${name} - name() Function`,
-                        status: "bad",
-                        message: `Error calling name(): ${error.message}`
-                    });
-                }
-            }
-
-            // Check 4: Raw Call
-            try {
-                const nameSelector = "0x06fdde03"; // name() function selector
-                const result = await provider.call({
-                    to: contractAddress,
-                    data: nameSelector
-                });
+                const contract = AppState.contract;
                 
-                if (result === '0x') {
-                    diagnostics.push({
-                        title: "Raw name() Call",
-                        status: "bad",
-                        message: "Raw call returned empty data"
-                    });
-                } else {
-                    diagnostics.push({
-                        title: "Raw name() Call",
-                        status: "good",
-                        message: `Raw call returned: ${result}`
-                    });
-                }
-            } catch (error) {
-                diagnostics.push({
-                    title: "Raw name() Call",
-                    status: "bad",
-                    message: `Raw call failed: ${error.message}`
-                });
-            }
-
-            // Display results
-            displayDiagnostics(diagnostics);
-        }
-
-        async function runGaslessDiagnostics() {
-            updateConfig();
-            
-            const resultsDiv = document.getElementById('diagnosticResults');
-            resultsDiv.innerHTML = '<p>Running gasless transaction diagnostics...</p>';
-            
-            const diagnostics = [];
-            
-            try {
-                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
-                
-                // Check gasless-specific functions
-                const gaslessFunctions = [
-                    'DOMAIN_SEPARATOR',
-                    'getChainId',
-                    'authorizedRelayers',
-                    'getMetaTransactionHash',
-                    'verifyMetaTransactionSignature'
-                ];
-                
-                // Test DOMAIN_SEPARATOR
-                try {
-                    const domainSeparator = await contract.DOMAIN_SEPARATOR();
-                    diagnostics.push({
-                        title: "DOMAIN_SEPARATOR() Function",
-                        status: "good",
-                        message: `Successfully called DOMAIN_SEPARATOR(): ${domainSeparator}`
-                    });
-                } catch (error) {
-                    diagnostics.push({
-                        title: "DOMAIN_SEPARATOR() Function",
-                        status: "bad",
-                        message: `Error calling DOMAIN_SEPARATOR(): ${error.message}`
-                    });
-                }
-
-                // Test getChainId
-                try {
-                    const chainId = await contract.getChainId();
-                    diagnostics.push({
-                        title: "getChainId() Function",
-                        status: "good",
-                        message: `Successfully called getChainId(): ${chainId}`
-                    });
-                } catch (error) {
-                    diagnostics.push({
-                        title: "getChainId() Function",
-                        status: "bad",
-                        message: `Error calling getChainId(): ${error.message}`
-                    });
-                }
-
-                // Test authorizedRelayers with zero address
-                try {
-                    const isAuthorized = await contract.authorizedRelayers(ethers.ZeroAddress);
-                    diagnostics.push({
-                        title: "authorizedRelayers() Function",
-                        status: "good",
-                        message: `Successfully called authorizedRelayers(0x0): ${isAuthorized}`
-                    });
-                } catch (error) {
-                    diagnostics.push({
-                        title: "authorizedRelayers() Function",
-                        status: "bad",
-                        message: `Error calling authorizedRelayers(): ${error.message}`
-                    });
-                }
-
-                // Test nonces function
-                try {
-                    const nonce = await contract.nonces(ethers.ZeroAddress);
-                    diagnostics.push({
-                        title: "nonces() Function",
-                        status: "good",
-                        message: `Successfully called nonces(0x0): ${nonce}`
-                    });
-                } catch (error) {
-                    diagnostics.push({
-                        title: "nonces() Function",
-                        status: "bad",
-                        message: `Error calling nonces(): ${error.message}`
-                    });
-                }
-                
-                // Check EIP-712 domain separator
-                try {
-                    const domainSeparator = await contract.DOMAIN_SEPARATOR();
-                    const chainId = await contract.getChainId();
-                    diagnostics.push({
-                        title: "EIP-712 Domain Configuration",
-                        status: "good",
-                        message: `Domain Separator: ${domainSeparator}\nChain ID: ${chainId}`
-                    });
-                } catch (error) {
-                    diagnostics.push({
-                        title: "EIP-712 Domain Configuration",
-                        status: "bad",
-                        message: `Error getting domain info: ${error.message}`
-                    });
-                }
-                
-            } catch (error) {
-                diagnostics.push({
-                    title: "Gasless Contract Interface",
-                    status: "bad",
-                    message: `Error creating contract interface: ${error.message}`
-                });
-            }
-            
-            displayDiagnostics(diagnostics);
-        }
-
-        async function checkBasicContract() {
-            updateConfig();
-            
-            try {
-                const contract = new ethers.Contract(contractAddress, ERC20_ABI, provider);
-                
+                // Test basic ERC20 functions
                 const name = await contract.name();
                 const symbol = await contract.symbol();
                 const decimals = await contract.decimals();
                 const totalSupply = await contract.totalSupply();
-                
-                showManualResult(`Basic Contract Info:
-Name: ${name}
-Symbol: ${symbol}
-Decimals: ${decimals}
-Total Supply: ${ethers.formatEther(totalSupply)} tokens`, 'success');
+
+                // Test gasless-specific functions
+                const domainSeparator = await contract.DOMAIN_SEPARATOR();
+                const chainId = await contract.getChainId();
+
+                const validationResult = `
+                    <strong>Contract Validation Results:</strong><br>
+                    Name: ${name}<br>
+                    Symbol: ${symbol}<br>
+                    Decimals: ${decimals}<br>
+                    Total Supply: ${Utils.formatTokenAmount(totalSupply)} tokens<br>
+                    Domain Separator: ${domainSeparator}<br>
+                    Chain ID: ${chainId}<br>
+                    ✅ Contract is valid and supports gasless transactions
+                `;
+
+                Utils.showAlert('configResults', validationResult, 'success');
+
             } catch (error) {
-                showManualResult(`Error checking basic contract: ${error.message}`, 'error');
+                Utils.showAlert('configResults', `❌ Contract validation failed: ${error.message}`, 'error');
             }
         }
 
-        async function checkContractCode() {
-            updateConfig();
+        function updateConnectionStatus(status, connected) {
+            const dot = document.getElementById('connectionDot');
+            const statusText = document.getElementById('connectionStatus');
             
-            try {
-                const code = await provider.getCode(contractAddress);
-                const codeSize = code.length;
-                
-                showManualResult(`Contract Code:
-Address: ${contractAddress}
-Code Size: ${codeSize} characters
-Code Present: ${code !== '0x' ? 'Yes' : 'No'}
-Code (first 200 chars): ${code.substring(0, 200)}...`, 'success');
-            } catch (error) {
-                showManualResult(`Error checking contract code: ${error.message}`, 'error');
+            if (connected) {
+                dot.classList.add('connected');
+            } else {
+                dot.classList.remove('connected');
             }
+            
+            statusText.textContent = status;
         }
 
-        async function generateTestWallets() {
-            try {
-                const userWallet = ethers.Wallet.createRandom();
-                const relayerWallet = ethers.Wallet.createRandom();
-                
-                document.getElementById('userPrivateKey').value = userWallet.privateKey;
-                document.getElementById('relayerPrivateKey').value = relayerWallet.privateKey;
-                document.getElementById('userAddress').value = userWallet.address;
-                document.getElementById('recipientAddress').value = relayerWallet.address;
-                
-                showGaslessResult(`Generated Test Wallets:
-User Address: ${userWallet.address}
-User Private Key: ${userWallet.privateKey}
+    function updateNetworkInfo() {
+        const networkInfoDiv = document.getElementById('networkInfo');
+        
+        if (!AppState.networkInfo) {
+            networkInfoDiv.innerHTML = '<p>No network information available</p>';
+            return;
+        }
+        
+        networkInfoDiv.innerHTML = `
+            <div class="network-info-item">
+                <div class="network-info-label">Network</div>
+                <div class="network-info-value">${AppState.networkInfo.name}</div>
+            </div>
+            <div class="network-info-item">
+                <div class="network-info-label">Chain ID</div>
+                <div class="network-info-value">${AppState.networkInfo.chainId}</div>
+            </div>
+            <div class="network-info-item">
+                <div class="network-info-label">Block Number</div>
+                <div class="network-info-value">${AppState.networkInfo.blockNumber}</div>
+            </div>
+            <div class="network-info-item">
+                <div class="network-info-label">Contract</div>
+                <div class="network-info-value">${Utils.formatAddress(AppState.config.contractAddress)}</div>
+            </div>
+        `;
+    }
 
-Relayer Address: ${relayerWallet.address}
-Relayer Private Key: ${relayerWallet.privateKey}
+    // Wallet management functions
+    async function generateTestWallets() {
+        try {
+            // Generate two random wallets
+            const userWallet = ethers.Wallet.createRandom();
+            const relayerWallet = ethers.Wallet.createRandom();
+            
+            // Fill in the private keys
+            document.getElementById('userPrivateKey').value = userWallet.privateKey;
+            document.getElementById('relayerPrivateKey').value = relayerWallet.privateKey;
+            
+            // Update wallet info
+            await updateWalletInfo();
+            
+            Utils.showAlert('adminResults', '✅ Test wallets generated successfully!', 'success');
+            
+        } catch (error) {
+            Utils.showAlert('adminResults', `❌ Error generating wallets: ${error.message}`, 'error');
+        }
+    }
 
-⚠️ These are test wallets only. Never use in production!`, 'success');
-            } catch (error) {
-                showGaslessResult(`Error generating wallets: ${error.message}`, 'error');
-            }
+    async function updateWalletInfo() {
+        if (!AppState.isConnected) {
+            Utils.showAlert('adminResults', '❌ Please connect to network first', 'error');
+            return;
         }
 
-        async function checkRelayerStatus() {
-            updateConfig();
+        try {
+            const userPrivateKey = document.getElementById('userPrivateKey').value.trim();
+            const relayerPrivateKey = document.getElementById('relayerPrivateKey').value.trim();
             
-            const relayerPrivateKey = document.getElementById('relayerPrivateKey').value;
-            
-            if (!relayerPrivateKey) {
-                showGaslessResult('Please enter a relayer private key', 'error');
-                return;
+            // Update user wallet info
+            if (userPrivateKey && Utils.validatePrivateKey(userPrivateKey)) {
+                const userWallet = Utils.getWalletFromPrivateKey(userPrivateKey);
+                document.getElementById('userAddress').textContent = userWallet.address;
+                
+                // Get token balance
+                const balance = await AppState.contract.balanceOf(userWallet.address);
+                const decimals = await AppState.contract.decimals();
+                document.getElementById('userBalance').textContent = 
+                    `${Utils.formatTokenAmount(balance, decimals)} tokens`;
+            } else {
+                document.getElementById('userAddress').textContent = 'Invalid private key';
+                document.getElementById('userBalance').textContent = '-';
             }
             
-            try {
-                const relayerWallet = new ethers.Wallet(relayerPrivateKey);
-                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
+            // Update relayer wallet info
+            if (relayerPrivateKey && Utils.validatePrivateKey(relayerPrivateKey)) {
+                const relayerWallet = Utils.getWalletFromPrivateKey(relayerPrivateKey);
+                document.getElementById('relayerAddress').textContent = relayerWallet.address;
                 
-                const isAuthorized = await contract.authorizedRelayers(relayerWallet.address);
-                const balance = await provider.getBalance(relayerWallet.address);
+                // Check authorization status
+                const isAuthorized = await AppState.contract.authorizedRelayers(relayerWallet.address);
+                const statusElement = document.getElementById('relayerStatus');
                 
-                showGaslessResult(`Relayer Status:
-Address: ${relayerWallet.address}
-Authorized: ${isAuthorized ? '✅ Yes' : '❌ No'}
-Balance: ${ethers.formatEther(balance)} ETH`, isAuthorized ? 'success' : 'warning');
-            } catch (error) {
-                showGaslessResult(`Error checking relayer status: ${error.message}`, 'error');
-            }
-        }
-
-        async function authorizeRelayer() {
-            updateConfig();
-            
-            const relayerPrivateKey = document.getElementById('relayerPrivateKey').value;
-            
-            if (!relayerPrivateKey) {
-                showGaslessResult('Please enter a relayer private key', 'error');
-                return;
-            }
-            
-            try {
-                const relayerWallet = new ethers.Wallet(relayerPrivateKey);
-                
-                showGaslessResult(`To authorize relayer ${relayerWallet.address}, the contract owner needs to call:
-authorizeRelayer("${relayerWallet.address}")
-
-This requires the owner's private key and gas fees.
-
-Function call data:
-${ethers.Interface.from(FULL_ABI).encodeFunctionData('authorizeRelayer', [relayerWallet.address])}`, 'warning');
-            } catch (error) {
-                showGaslessResult(`Error: ${error.message}`, 'error');
-            }
-        }
-
-        async function mintTokensToUser() {
-            updateConfig();
-            
-            const userPrivateKey = document.getElementById('userPrivateKey').value;
-            const transferAmount = document.getElementById('transferAmount').value;
-            
-            if (!userPrivateKey || !transferAmount) {
-                showGaslessResult('Please enter user private key and transfer amount', 'error');
-                return;
-            }
-            
-            try {
-                const userWallet = new ethers.Wallet(userPrivateKey);
-                
-                showGaslessResult(`To mint ${ethers.formatEther(transferAmount)} tokens to user ${userWallet.address}, the contract owner needs to call:
-mint("${userWallet.address}", "${transferAmount}")
-
-This requires the owner's private key and gas fees.
-
-Function call data:
-${ethers.Interface.from(FULL_ABI).encodeFunctionData('mint', [userWallet.address, transferAmount])}`, 'warning');
-            } catch (error) {
-                showGaslessResult(`Error: ${error.message}`, 'error');
-            }
-        }
-
-        async function generateMetaTxSignature() {
-            updateConfig();
-            
-            const userPrivateKey = document.getElementById('userPrivateKey').value;
-            const functionData = document.getElementById('functionData').value;
-            const userAddress = document.getElementById('userAddress').value;
-            
-            if (!userPrivateKey || !functionData || !userAddress) {
-                showMetaTxResult('Please fill in all required fields', 'error');
-                return;
-            }
-            
-            try {
-                const userWallet = new ethers.Wallet(userPrivateKey);
-                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
-                
-                // Get current nonce
-                const nonce = await contract.nonces(userAddress);
-                
-                // Create the meta-transaction hash
-                const metaTxHash = await contract.getMetaTransactionHash(
-                    userAddress,
-                    functionData,
-                    nonce
-                );
-                
-                // Sign the hash
-                const signature = await userWallet.signMessage(ethers.getBytes(metaTxHash));
-                const sig = ethers.Signature.from(signature);
-                
-                showMetaTxResult(`Meta-Transaction Signature Generated:
-User Address: ${userAddress}
-Nonce: ${nonce}
-Function Data: ${functionData}
-Meta-Tx Hash: ${metaTxHash}
-Signature: ${signature}
-R: ${sig.r}
-S: ${sig.s}
-V: ${sig.v}`, 'success');
-                
-} catch (error) {
-    showMetaTxResult(`Error generating signature: ${error.message}`, 'error');
-}
-        }
-
-        async function verifyMetaTxSignature() {
-            updateConfig();
-            
-            const userAddress = document.getElementById('userAddress').value;
-            const functionData = document.getElementById('functionData').value;
-            
-            if (!userAddress || !functionData) {
-                showMetaTxResult('Please fill in user address and function data', 'error');
-                return;
-            }
-            
-            try {
-                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
-                
-                // Extract signature components from the previous result
-                const resultText = document.getElementById('metaTxResults').textContent;
-                const rMatch = resultText.match(/R: (0x[a-fA-F0-9]{64})/);
-                const sMatch = resultText.match(/S: (0x[a-fA-F0-9]{64})/);
-                const vMatch = resultText.match(/V: (\d+)/);
-                
-                if (!rMatch || !sMatch || !vMatch) {
-                    showMetaTxResult('Please generate a signature first', 'error');
-                    return;
+                if (isAuthorized) {
+                    statusElement.innerHTML = '<span class="status-indicator status-success">✅ Authorized</span>';
+                } else {
+                    statusElement.innerHTML = '<span class="status-indicator status-error">❌ Not Authorized</span>';
                 }
-                
-                const r = rMatch[1];
-                const s = sMatch[1];
-                const v = parseInt(vMatch[1]);
-                
-                const isValid = await contract.verifyMetaTransactionSignature(
-                    userAddress,
-                    functionData,
-                    r,
-                    s,
-                    v
-                );
-                
-                showMetaTxResult(`Signature Verification Result:
-User Address: ${userAddress}
-Function Data: ${functionData}
-R: ${r}
-S: ${s}
-V: ${v}
-Is Valid: ${isValid ? '✅ Valid' : '❌ Invalid'}`, isValid ? 'success' : 'error');
-                
-            } catch (error) {
-                showMetaTxResult(`Error verifying signature: ${error.message}`, 'error');
-            }
-        }
-
-        async function getMetaTxHash() {
-            updateConfig();
-            
-            const userAddress = document.getElementById('userAddress').value;
-            const functionData = document.getElementById('functionData').value;
-            
-            if (!userAddress || !functionData) {
-                showMetaTxResult('Please fill in user address and function data', 'error');
-                return;
+            } else {
+                document.getElementById('relayerAddress').textContent = 'Invalid private key';
+                document.getElementById('relayerStatus').innerHTML = '<span class="status-indicator status-error">❌ Invalid Key</span>';
             }
             
-            try {
-                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
-                const nonce = await contract.nonces(userAddress);
-                
-                const metaTxHash = await contract.getMetaTransactionHash(
-                    userAddress,
-                    functionData,
-                    nonce
-                );
-                
-                showMetaTxResult(`Meta-Transaction Hash:
-User Address: ${userAddress}
-Function Data: ${functionData}
-Nonce: ${nonce}
-Hash: ${metaTxHash}`, 'success');
-                
-            } catch (error) {
-                showMetaTxResult(`Error getting meta-transaction hash: ${error.message}`, 'error');
-            }
+        } catch (error) {
+            console.error('Error updating wallet info:', error);
+            Utils.showAlert('adminResults', `❌ Error updating wallet info: ${error.message}`, 'error');
+        }
+    }
+
+    function toggleVisibility(inputId) {
+        const input = document.getElementById(inputId);
+        const button = input.nextElementSibling;
+        
+        if (input.type === 'password') {
+            input.type = 'text';
+            button.textContent = '🙈';
+        } else {
+            input.type = 'password';
+            button.textContent = '👁️';
+        }
+    }
+
+    // Gasless transaction functions
+    async function simulateTransfer() {
+        if (!AppState.isConnected) {
+            Utils.showAlert('gaslessResults', '❌ Please connect to network first', 'error');
+            return;
         }
 
-        async function simulateMetaTx() {
-            updateConfig();
+        try {
+            const userPrivateKey = document.getElementById('userPrivateKey').value.trim();
+            const recipientAddress = document.getElementById('recipientAddress').value.trim();
+            const transferAmount = document.getElementById('transferAmount').value.trim();
             
-            const userAddress = document.getElementById('userAddress').value;
-            const functionData = document.getElementById('functionData').value;
-            const relayerPrivateKey = document.getElementById('relayerPrivateKey').value;
-            
-            if (!userAddress || !functionData || !relayerPrivateKey) {
-                showMetaTxResult('Please fill in all required fields including relayer private key', 'error');
-                return;
-            }
-            
-            try {
-                const relayerWallet = new ethers.Wallet(relayerPrivateKey, provider);
-                const contract = new ethers.Contract(contractAddress, FULL_ABI, relayerWallet);
-                
-                // Check if relayer is authorized
-                const isAuthorized = await contract.authorizedRelayers(relayerWallet.address);
-                if (!isAuthorized) {
-                    showMetaTxResult(`Relayer ${relayerWallet.address} is not authorized. Please authorize first.`, 'error');
-                    return;
-                }
-                
-                // Extract signature components
-                const resultText = document.getElementById('metaTxResults').textContent;
-                const rMatch = resultText.match(/R: (0x[a-fA-F0-9]{64})/);
-                const sMatch = resultText.match(/S: (0x[a-fA-F0-9]{64})/);
-                const vMatch = resultText.match(/V: (\d+)/);
-                
-                if (!rMatch || !sMatch || !vMatch) {
-                    showMetaTxResult('Please generate a signature first', 'error');
-                    return;
-                }
-                
-                const r = rMatch[1];
-                const s = sMatch[1];
-                const v = parseInt(vMatch[1]);
-                
-                // Simulate the transaction
-                const gasEstimate = await contract.executeMetaTransaction.estimateGas(
-                    userAddress,
-                    functionData,
-                    r,
-                    s,
-                    v
-                );
-                
-                showMetaTxResult(`Meta-Transaction Simulation:
-User Address: ${userAddress}
-Relayer Address: ${relayerWallet.address}
-Function Data: ${functionData}
-Estimated Gas: ${gasEstimate.toString()}
-Status: ✅ Simulation Successful
-Ready to execute!`, 'success');
-                
-            } catch (error) {
-                showMetaTxResult(`Simulation failed: ${error.message}`, 'error');
-            }
-        }
-
-        async function testGaslessTransfer() {
-            updateConfig();
-            
-            const userPrivateKey = document.getElementById('userPrivateKey').value;
-            const relayerPrivateKey = document.getElementById('relayerPrivateKey').value;
-            const recipientAddress = document.getElementById('recipientAddress').value;
-            const transferAmount = document.getElementById('transferAmount').value;
-            
-            if (!userPrivateKey || !relayerPrivateKey || !recipientAddress || !transferAmount) {
-                showGaslessResult('Please fill in all required fields', 'error');
-                return;
+            // Validate inputs
+            if (!userPrivateKey || !Utils.validatePrivateKey(userPrivateKey)) {
+                throw new Error('Invalid user private key');
             }
             
-            try {
-                const userWallet = new ethers.Wallet(userPrivateKey);
-                const relayerWallet = new ethers.Wallet(relayerPrivateKey, provider);
-                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
-                const contractWithRelayer = new ethers.Contract(contractAddress, FULL_ABI, relayerWallet);
-                
-                showGaslessResult('Testing gasless transfer...', 'warning');
-                
-                // Step 1: Check user balance
-                const userBalance = await contract.balanceOf(userWallet.address);
-                if (userBalance < BigInt(transferAmount)) {
-                    showGaslessResult(`Insufficient balance. User has ${ethers.formatEther(userBalance)} tokens, needs ${ethers.formatEther(transferAmount)}`, 'error');
-                    return;
-                }
-                
-                // Step 2: Check relayer authorization
-                const isAuthorized = await contract.authorizedRelayers(relayerWallet.address);
-                if (!isAuthorized) {
-                    showGaslessResult(`Relayer ${relayerWallet.address} is not authorized`, 'error');
-                    return;
-                }
-                
-                // Step 3: Encode transfer function
-                const transferInterface = new ethers.Interface(FULL_ABI);
-                const functionData = transferInterface.encodeFunctionData('transfer', [recipientAddress, transferAmount]);
-                
-                // Step 4: Get nonce
-                const nonce = await contract.nonces(userWallet.address);
-                
-                // Step 5: Create meta-transaction hash
-                const metaTxHash = await contract.getMetaTransactionHash(
-                    userWallet.address,
-                    functionData,
-                    nonce
-                );
-                
-                // Step 6: Sign the hash
-                const signature = await userWallet.signMessage(ethers.getBytes(metaTxHash));
-                const sig = ethers.Signature.from(signature);
-                
-                // Step 7: Execute meta-transaction
-                const tx = await contractWithRelayer.executeMetaTransaction(
-                    userWallet.address,
-                    functionData,
-                    sig.r,
-                    sig.s,
-                    sig.v
-                );
-                
-                showGaslessResult(`✅ Gasless Transfer Successful!
-Transaction Hash: ${tx.hash}
-From: ${userWallet.address}
-To: ${recipientAddress}
-Amount: ${ethers.formatEther(transferAmount)} tokens
-Relayer: ${relayerWallet.address}
-Nonce: ${nonce}
-Gas Used: Paid by relayer
-
-Waiting for confirmation...`, 'success');
-                
-                // Wait for confirmation
-                const receipt = await tx.wait();
-                
-                showGaslessResult(`✅ Gasless Transfer Confirmed!
-Transaction Hash: ${tx.hash}
-Block Number: ${receipt.blockNumber}
-Gas Used: ${receipt.gasUsed}
-From: ${userWallet.address}
-To: ${recipientAddress}
-Amount: ${ethers.formatEther(transferAmount)} tokens
-Relayer: ${relayerWallet.address}`, 'success');
-                
-            } catch (error) {
-                showGaslessResult(`Gasless transfer failed: ${error.message}`, 'error');
+            if (!recipientAddress || !Utils.validateAddress(recipientAddress)) {
+                throw new Error('Invalid recipient address');
             }
-        }
-
-        // Manual function calls
-        async function callName() {
-            updateConfig();
-            try {
-                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
-                const result = await contract.name();
-                showManualResult(`name(): ${result}`, 'success');
-            } catch (error) {
-                showManualResult(`Error calling name(): ${error.message}`, 'error');
-            }
-        }
-
-        async function callSymbol() {
-            updateConfig();
-            try {
-                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
-                const result = await contract.symbol();
-                showManualResult(`symbol(): ${result}`, 'success');
-            } catch (error) {
-                showManualResult(`Error calling symbol(): ${error.message}`, 'error');
-            }
-        }
-
-        async function callDecimals() {
-            updateConfig();
-            try {
-                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
-                const result = await contract.decimals();
-                showManualResult(`decimals(): ${result}`, 'success');
-            } catch (error) {
-                showManualResult(`Error calling decimals(): ${error.message}`, 'error');
-            }
-        }
-
-        async function callTotalSupply() {
-            updateConfig();
-            try {
-                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
-                const result = await contract.totalSupply();
-                showManualResult(`totalSupply(): ${ethers.formatEther(result)} tokens`, 'success');
-            } catch (error) {
-                showManualResult(`Error calling totalSupply(): ${error.message}`, 'error');
-            }
-        }
-
-        async function callDomainSeparator() {
-            updateConfig();
-            try {
-                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
-                const result = await contract.DOMAIN_SEPARATOR();
-                showManualResult(`DOMAIN_SEPARATOR(): ${result}`, 'success');
-            } catch (error) {
-                showManualResult(`Error calling DOMAIN_SEPARATOR(): ${error.message}`, 'error');
-            }
-        }
-
-        async function callGetChainId() {
-            updateConfig();
-            try {
-                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
-                const result = await contract.getChainId();
-                showManualResult(`getChainId(): ${result}`, 'success');
-            } catch (error) {
-                showManualResult(`Error calling getChainId(): ${error.message}`, 'error');
-            }
-        }
-
-        async function callNonces() {
-            updateConfig();
-            const userAddress = document.getElementById('userAddress').value || ethers.ZeroAddress;
             
-            try {
-                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
-                const result = await contract.nonces(userAddress);
-                showManualResult(`nonces(${userAddress}): ${result}`, 'success');
-            } catch (error) {
-                showManualResult(`Error calling nonces(): ${error.message}`, 'error');
+            if (!transferAmount || isNaN(transferAmount) || parseFloat(transferAmount) <= 0) {
+                throw new Error('Invalid transfer amount');
             }
-        }
-
-        // Network information functions
-        async function getNetworkInfo() {
-            updateConfig();
-            try {
-                const network = await provider.getNetwork();
-                const blockNumber = await provider.getBlockNumber();
-                
-                showNetworkResult(`Network Information:
-Name: ${network.name}
-Chain ID: ${network.chainId}
-Current Block: ${blockNumber}
-Contract Address: ${contractAddress}
-RPC URL: ${rpcUrl}`, 'success');
-            } catch (error) {
-                showNetworkResult(`Error getting network info: ${error.message}`, 'error');
-            }
-        }
-
-        async function checkBlockNumber() {
-            updateConfig();
-            try {
-                const blockNumber = await provider.getBlockNumber();
-                showNetworkResult(`Current Block Number: ${blockNumber}`, 'success');
-            } catch (error) {
-                showNetworkResult(`Error getting block number: ${error.message}`, 'error');
-            }
-        }
-
-        async function checkGasPrice() {
-            updateConfig();
-            try {
-                const gasPrice = await provider.getFeeData();
-                showNetworkResult(`Gas Price Information:
-Gas Price: ${ethers.formatUnits(gasPrice.gasPrice, 'gwei')} gwei
-Max Fee Per Gas: ${ethers.formatUnits(gasPrice.maxFeePerGas, 'gwei')} gwei
-Max Priority Fee Per Gas: ${ethers.formatUnits(gasPrice.maxPriorityFeePerGas, 'gwei')} gwei`, 'success');
-            } catch (error) {
-                showNetworkResult(`Error getting gas price: ${error.message}`, 'error');
-            }
-        }
-
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            updateConfig();
             
-            // Auto-generate function data for transfer when recipient and amount change
-            document.getElementById('recipientAddress').addEventListener('input', updateTransferFunctionData);
-            document.getElementById('transferAmount').addEventListener('input', updateTransferFunctionData);
-        });
-
-        function updateTransferFunctionData() {
-            const recipientAddress = document.getElementById('recipientAddress').value;
-            const transferAmount = document.getElementById('transferAmount').value;
+            const userWallet = Utils.getWalletFromPrivateKey(userPrivateKey);
+            const decimals = await AppState.contract.decimals();
+            const amount = Utils.parseTokenAmount(transferAmount, decimals);
             
-            if (recipientAddress && transferAmount) {
+            // Check balance
+            const balance = await AppState.contract.balanceOf(userWallet.address);
+            if (balance < amount) {
+                throw new Error('Insufficient balance');
+            }
+            
+            // Simulate the transaction
+            const simulationResult = `
+                <strong>Transaction Simulation:</strong><br>
+                From: ${userWallet.address}<br>
+                To: ${recipientAddress}<br>
+                Amount: ${transferAmount} tokens<br>
+                Current Balance: ${Utils.formatTokenAmount(balance, decimals)} tokens<br>
+                Remaining Balance: ${Utils.formatTokenAmount(balance - amount, decimals)} tokens<br>
+                ✅ Transaction is valid and ready to execute
+            `;
+            
+            Utils.showAlert('gaslessResults', simulationResult, 'info');
+            
+        } catch (error) {
+            Utils.showAlert('gaslessResults', `❌ Simulation failed: ${error.message}`, 'error');
+        }
+    }
+
+    async function executeGaslessTransfer() {
+        if (!AppState.isConnected) {
+            Utils.showAlert('gaslessResults', '❌ Please connect to network first', 'error');
+            return;
+        }
+
+        try {
+            Utils.showSpinner('executeSpinner', true);
+            document.getElementById('executeBtn').disabled = true;
+            
+            const userPrivateKey = document.getElementById('userPrivateKey').value.trim();
+            const relayerPrivateKey = document.getElementById('relayerPrivateKey').value.trim();
+            const recipientAddress = document.getElementById('recipientAddress').value.trim();
+            const transferAmount = document.getElementById('transferAmount').value.trim();
+            
+            // Validate inputs
+            if (!userPrivateKey || !Utils.validatePrivateKey(userPrivateKey)) {
+                throw new Error('Invalid user private key');
+            }
+            
+            if (!relayerPrivateKey || !Utils.validatePrivateKey(relayerPrivateKey)) {
+                throw new Error('Invalid relayer private key');
+            }
+            
+            if (!recipientAddress || !Utils.validateAddress(recipientAddress)) {
+                throw new Error('Invalid recipient address');
+            }
+            
+            if (!transferAmount || isNaN(transferAmount) || parseFloat(transferAmount) <= 0) {
+                throw new Error('Invalid transfer amount');
+            }
+            
+            const userWallet = Utils.getWalletFromPrivateKey(userPrivateKey);
+            const relayerWallet = Utils.getWalletFromPrivateKey(relayerPrivateKey).connect(AppState.provider);
+            const decimals = await AppState.contract.decimals();
+            const amount = Utils.parseTokenAmount(transferAmount, decimals);
+            
+            // Check if relayer is authorized
+            const isAuthorized = await AppState.contract.authorizedRelayers(relayerWallet.address);
+            if (!isAuthorized) {
+                throw new Error('Relayer is not authorized. Please authorize the relayer first.');
+            }
+            
+            // Check balance
+            const balance = await AppState.contract.balanceOf(userWallet.address);
+            if (balance < amount) {
+                throw new Error('Insufficient balance');
+            }
+            
+            // Prepare the function signature for transfer
+            const functionSignature = AppState.contract.interface.encodeFunctionData('transfer', [
+                recipientAddress,
+                amount
+            ]);
+            
+            // Get current nonce
+            const nonce = await AppState.contract.nonces(userWallet.address);
+            
+            // Create the meta-transaction hash
+            const metaTxHash = await AppState.contract.getMetaTransactionHash(
+                userWallet.address,
+                functionSignature,
+                nonce
+            );
+            
+            // Sign the meta-transaction
+            const signature = await userWallet.signMessage(ethers.getBytes(metaTxHash));
+            const sigParams = ethers.Signature.from(signature);
+            
+            // Execute the meta-transaction
+            const contractWithRelayer = AppState.contract.connect(relayerWallet);
+            const tx = await contractWithRelayer.executeMetaTransaction(
+                userWallet.address,
+                functionSignature,
+                sigParams.r,
+                sigParams.s,
+                sigParams.v
+            );
+            
+            Utils.showAlert('gaslessResults', `⏳ Transaction submitted: ${tx.hash}`, 'info');
+            
+            // Wait for confirmation
+            const receipt = await tx.wait();
+            
+            // Update wallet info
+            await updateWalletInfo();
+            
+            // Add to transaction history
+            Utils.addTransaction({
+                hash: tx.hash,
+                from: userWallet.address,
+                to: recipientAddress,
+                amount: transferAmount,
+                type: 'Gasless Transfer',
+                status: 'confirmed',
+                gasUsed: receipt.gasUsed.toString(),
+                relayer: relayerWallet.address
+            });
+            
+            const successMessage = `
+                <strong>✅ Gasless Transfer Successful!</strong><br>
+                Transaction Hash: ${tx.hash}<br>
+                From: ${Utils.formatAddress(userWallet.address)}<br>
+                To: ${Utils.formatAddress(recipientAddress)}<br>
+                Amount: ${transferAmount} tokens<br>
+                Gas Used: ${receipt.gasUsed}<br>
+                Relayer: ${Utils.formatAddress(relayerWallet.address)}
+            `;
+            
+            Utils.showAlert('gaslessResults', successMessage, 'success');
+            
+        } catch (error) {
+            Utils.showAlert('gaslessResults', `❌ Transaction failed: ${error.message}`, 'error');
+        } finally {
+            Utils.showSpinner('executeSpinner', false);
+            document.getElementById('executeBtn').disabled = false;
+        }
+    }
+
+    // Admin functions
+    async function authorizeRelayer() {
+        if (!AppState.isConnected) {
+            Utils.showAlert('adminResults', '❌ Please connect to network first', 'error');
+            return;
+        }
+
+        try {
+            Utils.showSpinner('authorizeSpinner', true);
+            
+            const ownerPrivateKey = document.getElementById('ownerPrivateKey').value.trim();
+            const relayerPrivateKey = document.getElementById('relayerPrivateKey').value.trim();
+            
+            if (!ownerPrivateKey || !Utils.validatePrivateKey(ownerPrivateKey)) {
+                throw new Error('Invalid owner private key');
+            }
+            
+            if (!relayerPrivateKey || !Utils.validatePrivateKey(relayerPrivateKey)) {
+                throw new Error('Invalid relayer private key');
+            }
+            
+            const ownerWallet = Utils.getWalletFromPrivateKey(ownerPrivateKey).connect(AppState.provider);
+            const relayerWallet = Utils.getWalletFromPrivateKey(relayerPrivateKey);
+            
+            // Check if the owner is actually the owner
+            const contractOwner = await AppState.contract.owner();
+            if (ownerWallet.address.toLowerCase() !== contractOwner.toLowerCase()) {
+                throw new Error('Provided private key is not the contract owner');
+            }
+            
+            const contractWithOwner = AppState.contract.connect(ownerWallet);
+            const tx = await contractWithOwner.authorizeRelayer(relayerWallet.address);
+            
+            Utils.showAlert('adminResults', `⏳ Authorization transaction submitted: ${tx.hash}`, 'info');
+            
+            const receipt = await tx.wait();
+            
+            // Update wallet info
+            await updateWalletInfo();
+            
+            Utils.addTransaction({
+                hash: tx.hash,
+                from: ownerWallet.address,
+                to: relayerWallet.address,
+                type: 'Authorize Relayer',
+                status: 'confirmed',
+                gasUsed: receipt.gasUsed.toString()
+            });
+            
+            Utils.showAlert('adminResults', `✅ Relayer authorized successfully! Transaction: ${tx.hash}`, 'success');
+            
+        } catch (error) {
+            Utils.showAlert('adminResults', `❌ Authorization failed: ${error.message}`, 'error');
+        } finally {
+            Utils.showSpinner('authorizeSpinner', false);
+        }
+    }
+
+    async function revokeRelayer() {
+        if (!AppState.isConnected) {
+            Utils.showAlert('adminResults', '❌ Please connect to network first', 'error');
+            return;
+        }
+
+        try {
+            const ownerPrivateKey = document.getElementById('ownerPrivateKey').value.trim();
+            const relayerPrivateKey = document.getElementById('relayerPrivateKey').value.trim();
+            
+            if (!ownerPrivateKey || !Utils.validatePrivateKey(ownerPrivateKey)) {
+                throw new Error('Invalid owner private key');
+            }
+            
+            if (!relayerPrivateKey || !Utils.validatePrivateKey(relayerPrivateKey)) {
+                throw new Error('Invalid relayer private key');
+            }
+            
+            const ownerWallet = Utils.getWalletFromPrivateKey(ownerPrivateKey).connect(AppState.provider);
+            const relayerWallet = Utils.getWalletFromPrivateKey(relayerPrivateKey);
+            
+            // Check if the owner is actually the owner
+            const contractOwner = await AppState.contract.owner();
+            if (ownerWallet.address.toLowerCase() !== contractOwner.toLowerCase()) {
+                throw new Error('Provided private key is not the contract owner');
+            }
+            
+            const contractWithOwner = AppState.contract.connect(ownerWallet);
+            const tx = await contractWithOwner.revokeRelayer(relayerWallet.address);
+            
+            Utils.showAlert('adminResults', `⏳ Revocation transaction submitted: ${tx.hash}`, 'info');
+            
+            const receipt = await tx.wait();
+            
+            // Update wallet info
+            await updateWalletInfo();
+            
+            Utils.addTransaction({
+                hash: tx.hash,
+                from: ownerWallet.address,
+                to: relayerWallet.address,
+                type: 'Revoke Relayer',
+                status: 'confirmed',
+                gasUsed: receipt.gasUsed.toString()
+            });
+            
+            Utils.showAlert('adminResults', `✅ Relayer revoked successfully! Transaction: ${tx.hash}`, 'success');
+            
+        } catch (error) {
+            Utils.showAlert('adminResults', `❌ Revocation failed: ${error.message}`, 'error');
+        }
+    }
+
+    async function mintTokens() {
+        if (!AppState.isConnected) {
+            Utils.showAlert('adminResults', '❌ Please connect to network first', 'error');
+            return;
+        }
+
+        try {
+            Utils.showSpinner('mintSpinner', true);
+            
+            const ownerPrivateKey = document.getElementById('ownerPrivateKey').value.trim();
+            const userPrivateKey = document.getElementById('userPrivateKey').value.trim();
+            
+            if (!ownerPrivateKey || !Utils.validatePrivateKey(ownerPrivateKey)) {
+                throw new Error('Invalid owner private key');
+            }
+            
+            if (!userPrivateKey || !Utils.validatePrivateKey(userPrivateKey)) {
+                throw new Error('Invalid user private key (recipient)');
+            }
+            
+            const ownerWallet = Utils.getWalletFromPrivateKey(ownerPrivateKey).connect(AppState.provider);
+            const userWallet = Utils.getWalletFromPrivateKey(userPrivateKey);
+            
+            // Check if the owner is actually the owner
+            const contractOwner = await AppState.contract.owner();
+            if (ownerWallet.address.toLowerCase() !== contractOwner.toLowerCase()) {
+                throw new Error('Provided private key is not the contract owner');
+            }
+            
+            const decimals = await AppState.contract.decimals();
+            const mintAmount = Utils.parseTokenAmount('1000', decimals); // Mint 1000 tokens
+            
+            const contractWithOwner = AppState.contract.connect(ownerWallet);
+            const tx = await contractWithOwner.mint(userWallet.address, mintAmount);
+            
+            Utils.showAlert('adminResults', `⏳ Mint transaction submitted: ${tx.hash}`, 'info');
+            
+            const receipt = await tx.wait();
+            
+            // Update wallet info
+            await updateWalletInfo();
+            
+            Utils.addTransaction({
+                hash: tx.hash,
+                from: ownerWallet.address,
+                to: userWallet.address,
+                amount: '1000',
+                type: 'Mint Tokens',
+                status: 'confirmed',
+                gasUsed: receipt.gasUsed.toString()
+            });
+            
+            Utils.showAlert('adminResults', `✅ Tokens minted successfully! Transaction: ${tx.hash}`, 'success');
+            
+        } catch (error) {
+            Utils.showAlert('adminResults', `❌ Minting failed: ${error.message}`, 'error');
+        } finally {
+            Utils.showSpinner('mintSpinner', false);
+        }
+    }
+
+    // Transaction history
+    function updateTransactionHistory() {
+        const historyDiv = document.getElementById('transactionHistory');
+        
+        if (AppState.transactions.length === 0) {
+            historyDiv.innerHTML = '<p class="text-gray-500">No transactions yet</p>';
+            return;
+        }
+        
+        const historyHTML = AppState.transactions.map(tx => `
+            <div class="card">
+                <div class="card-header">
+                    <span class="status-indicator status-${tx.status === 'confirmed' ? 'success' : 'warning'}">
+                        ${tx.status === 'confirmed' ? '✅' : '⏳'} ${tx.type}
+                    </span>
+                    <span style="float: right; font-size: 0.75rem; color: var(--gray-500);">
+                        ${new Date(tx.timestamp).toLocaleString()}
+                    </span>
+                </div>
+                <div style="font-size: 0.875rem; color: var(--gray-600);">
+                    <strong>Hash:</strong> ${tx.hash}<br>
+                    <strong>From:</strong> ${Utils.formatAddress(tx.from)}<br>
+                    <strong>To:</strong> ${Utils.formatAddress(tx.to)}<br>
+                    ${tx.amount ? `<strong>Amount:</strong> ${tx.amount} tokens<br>` : ''}
+                    ${tx.gasUsed ? `<strong>Gas Used:</strong> ${tx.gasUsed}<br>` : ''}
+                    ${tx.relayer ? `<strong>Relayer:</strong> ${Utils.formatAddress(tx.relayer)}<br>` : ''}
+                </div>
+            </div>
+        `).join('');
+        
+        historyDiv.innerHTML = historyHTML;
+    }
+
+    // Event listeners and initialization
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set up event listeners for real-time updates
+        document.getElementById('userPrivateKey').addEventListener('input', debounce(updateWalletInfo, 1000));
+        document.getElementById('relayerPrivateKey').addEventListener('input', debounce(updateWalletInfo, 1000));
+        
+        // Initialize transaction history
+        updateTransactionHistory();
+        
+        // Update network info periodically
+        setInterval(async () => {
+            if (AppState.isConnected && AppState.provider) {
                 try {
-                    const transferInterface = new ethers.Interface(FULL_ABI);
-                    const functionData = transferInterface.encodeFunctionData('transfer', [recipientAddress, transferAmount]);
-                    document.getElementById('functionData').value = functionData;
+                    const blockNumber = await AppState.provider.getBlockNumber();
+                    if (AppState.networkInfo) {
+                        AppState.networkInfo.blockNumber = blockNumber;
+                        updateNetworkInfo();
+                    }
                 } catch (error) {
-                    console.log('Error encoding function data:', error);
+                    console.error('Error updating block number:', error);
                 }
             }
-        }
+        }, 15000); // Update every 15 seconds
+    });
 
-        // Utility function to format addresses
-        function formatAddress(address) {
-            return `${address.slice(0, 6)}...${address.slice(-4)}`;
-        }
-
-        // Add some helper functions for testing
-        window.testHelpers = {
-            // Generate a test transfer function data
-            generateTransferData: (to, amount) => {
-                const transferInterface = new ethers.Interface(FULL_ABI);
-                return transferInterface.encodeFunctionData('transfer', [to, amount]);
-            },
-            
-            // Generate a test approve function data
-            generateApproveData: (spender, amount) => {
-                const approveInterface = new ethers.Interface(FULL_ABI);
-                return approveInterface.encodeFunctionData('approve', [spender, amount]);
-            },
-            
-            // Convert ether to wei
-            toWei: (amount) => ethers.parseEther(amount.toString()),
-            
-            // Convert wei to ether
-            fromWei: (amount) => ethers.formatEther(amount)
+    // Utility function for debouncing
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
         };
+    }
 
-        console.log('Gasless Transaction Debugger loaded successfully!');
-        console.log('Test helpers available in window.testHelpers');
+    // Global error handler
+    window.addEventListener('error', function(event) {
+        console.error('Global error:', event.error);
+        Utils.showAlert('adminResults', `❌ Unexpected error: ${event.error.message}`, 'error');
+    });
+
+    // Expose utilities for debugging
+    window.AppState = AppState;
+    window.Utils = Utils;
     </script>
 </body>
 </html>
