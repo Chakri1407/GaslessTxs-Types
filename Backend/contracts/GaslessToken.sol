@@ -14,9 +14,16 @@ contract GaslessToken is ERC20, Ownable, ReentrancyGuard, EIP712 {
         "MetaTransaction(uint256 nonce,address from,bytes functionSignature)"
     );
     
-    mapping(address => uint256) private _nonces;
+    // EIP-2612 Permit typehash
+    bytes32 private constant PERMIT_TYPEHASH = keccak256(
+        "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+    );
     
+    mapping(address => uint256) private _nonces;
     mapping(address => bool) public authorizedRelayers;
+    
+    // Add context storage for meta-transactions
+    address private _msgSenderOverride;
     
     event MetaTransactionExecuted(
         address indexed userAddress,
@@ -88,10 +95,15 @@ contract GaslessToken is ERC20, Ownable, ReentrancyGuard, EIP712 {
         
         _nonces[userAddress] = nonce + 1;
         
-        // FIXED: Append user address to function signature for _msgSender() to work correctly
-        bytes memory callData = abi.encodePacked(functionSignature, userAddress);
+        // Set the message sender override for this meta-transaction
+        _msgSenderOverride = userAddress;
         
-        (bool success, bytes memory returnData) = address(this).call(callData);
+        // Execute the function call directly with the original signature
+        (bool success, bytes memory returnData) = address(this).call(functionSignature);
+        
+        // Clear the override after execution
+        _msgSenderOverride = address(0);
+        
         if (!success) {
             revert ExecutionFailed();
         }
@@ -134,8 +146,8 @@ contract GaslessToken is ERC20, Ownable, ReentrancyGuard, EIP712 {
     }
     
     function _msgSender() internal view override returns (address) {
-        if (msg.data.length >= 20 && authorizedRelayers[msg.sender]) {
-            return address(uint160(bytes20(msg.data[msg.data.length - 20:])));
+        if (_msgSenderOverride != address(0)) {
+            return _msgSenderOverride;
         }
         return msg.sender;
     }
@@ -182,7 +194,7 @@ contract GaslessToken is ERC20, Ownable, ReentrancyGuard, EIP712 {
         
         bytes32 structHash = keccak256(
             abi.encode(
-                keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
+                PERMIT_TYPEHASH,
                 owner,
                 spender,
                 value,
@@ -192,11 +204,60 @@ contract GaslessToken is ERC20, Ownable, ReentrancyGuard, EIP712 {
         );
         
         bytes32 digest = _hashTypedDataV4(structHash);
+        
         address signer = digest.recover(abi.encodePacked(r, s, v));
         
         require(signer == owner, "Invalid signature");
         
         _nonces[owner]++;
         _approve(owner, spender, value);
+    }
+    
+    // Helper function to get the current nonce for permit
+    function permitNonces(address owner) external view returns (uint256) {
+        return _nonces[owner];
+    }
+    
+    // Additional utility functions for meta-transactions
+    function getMetaTransactionHash(
+        address userAddress,
+        bytes calldata functionSignature,
+        uint256 nonce
+    ) external view returns (bytes32) {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                META_TRANSACTION_TYPEHASH,
+                nonce,
+                userAddress,
+                keccak256(functionSignature)
+            )
+        );
+        
+        return _hashTypedDataV4(structHash);
+    }
+    
+    // Function to verify if a signature is valid for a meta-transaction
+    function verifyMetaTransactionSignature(
+        address userAddress,
+        bytes calldata functionSignature,
+        bytes32 sigR,
+        bytes32 sigS,
+        uint8 sigV
+    ) external view returns (bool) {
+        uint256 nonce = _nonces[userAddress];
+        
+        bytes32 structHash = keccak256(
+            abi.encode(
+                META_TRANSACTION_TYPEHASH,
+                nonce,
+                userAddress,
+                keccak256(functionSignature)
+            )
+        );
+        
+        bytes32 digest = _hashTypedDataV4(structHash);
+        address signer = digest.recover(abi.encodePacked(sigR, sigS, sigV));
+        
+        return signer == userAddress;
     }
 } 

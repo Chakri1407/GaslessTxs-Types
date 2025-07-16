@@ -1,9 +1,0 @@
-{"address":"0x68e317923B39eeC674C717293cCf037F841b6398","balance":"0.0 GLT","level":"info","message":"Contract balance check:","timestamp":"2025-07-15T18:08:57.847Z"}
-{"level":"warn","message":"Insufficient contract balance for transfer","timestamp":"2025-07-15T18:08:57.858Z"}
-{"expected":"0xa93c99af","level":"info","match":false,"message":"Function signature validation:","provided":"0xa9059cbb","timestamp":"2025-07-15T18:08:57.860Z"}
-{"level":"warn","message":"Function signature mismatch","timestamp":"2025-07-15T18:08:57.861Z"}
-{"isAuthorized":true,"level":"info","message":"Relayer authorization check:","relayer":"0xe8239aFA5Cc7Ec80d27713A60D2E50facbeA3BC0","timestamp":"2025-07-15T18:08:58.846Z"}
-{"expected":"0","level":"info","message":"User nonce check:","nonce":"0","timestamp":"2025-07-15T18:08:59.272Z","userAddress":"0xe8239aFA5Cc7Ec80d27713A60D2E50facbeA3BC0"}
-{"isValid":true,"level":"info","message":"Recipient address validation:","recipient":"0x59D1660C1F9C88aFCebBdbCb28Acd8110fB4ad25","timestamp":"2025-07-15T18:08:59.274Z"}
-{"amount":"10.0 GLT","isValid":true,"level":"info","message":"Amount validation:","timestamp":"2025-07-15T18:08:59.274Z"}
-{"level":"error","message":"Debugging error: Cannot read properties of undefined (reading 'executeMetaTransaction')","stack":"TypeError: Cannot read properties of undefined (reading 'executeMetaTransaction')\n    at debugGaslessTransaction (C:\\CN-Pro\\SoluLab\\Projects\\GasLessTxPOC\\Backend\\debug.js:133:56)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)","timestamp":"2025-07-15T18:08:59.280Z"}

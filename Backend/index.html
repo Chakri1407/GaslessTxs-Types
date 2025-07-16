@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gasless Transaction Debugger</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .section {
+            background: #fff;
+            border: 1px solid #eee;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 2px solid #e74c3c;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #34495e;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+            font-family: 'Courier New', monospace;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #e74c3c;
+            box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(231, 76, 60, 0.3);
+        }
+
+        .btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn.secondary {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+        }
+
+        .btn.secondary:hover {
+            box-shadow: 0 6px 12px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn.success {
+            background: linear-gradient(135deg, #27ae60, #229954);
+        }
+
+        .btn.success:hover {
+            box-shadow: 0 6px 12px rgba(39, 174, 96, 0.3);
+        }
+
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .result.success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+
+        .result.error {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+
+        .result.warning {
+            background: #fff3cd;
+            border-color: #ffeaa7;
+            color: #856404;
+        }
+
+        .diagnostic-item {
+            background: #f8f9fa;
+            border-left: 4px solid #e74c3c;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .diagnostic-item h4 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .status-good {
+            border-left-color: #27ae60;
+        }
+
+        .status-bad {
+            border-left-color: #e74c3c;
+        }
+
+        .status-warning {
+            border-left-color: #f39c12;
+        }
+
+        .gasless-section {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        }
+
+        .loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #f0f0f0;
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #e74c3c, #c0392b);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Gasless Transaction Debugger</h1>
+            <p>Diagnose issues with your gasless transaction setup</p>
+        </div>
+
+        <div class="main-content">
+            <div class="section">
+                <h2>📋 Configuration</h2>
+                <div class="form-group">
+                    <label for="contractAddress">Contract Address:</label>
+                    <input type="text" id="contractAddress" value="0xd699187d5C26Ee6e85B0CEd886AeE676371B4574" />
+                </div>
+                <div class="form-group">
+                    <label for="rpcUrl">RPC URL:</label>
+                    <input type="text" id="rpcUrl" value="https://polygon-amoy.g.alchemy.com/v2/fgPCE8UqEyFS3PnmIvAz6" />
+                </div>
+                <button class="btn" onclick="runDiagnostics()">🔍 Run Full Diagnostics</button>
+                <button class="btn secondary" onclick="runGaslessDiagnostics()">⚡ Run Gasless Diagnostics</button>
+                <button class="btn" onclick="checkBasicContract()">📋 Basic Contract Check</button>
+                <button class="btn" onclick="checkContractCode()">💻 Check Contract Code</button>
+            </div>
+
+            <div class="section gasless-section">
+                <h2>⚡ Gasless Transaction Testing</h2>
+                <div class="form-group">
+                    <label for="userPrivateKey">User Private Key (for signing):</label>
+                    <input type="password" id="userPrivateKey" placeholder="0x... (keep this secure)" />
+                </div>
+                <div class="form-group">
+                    <label for="relayerPrivateKey">Relayer Private Key (for executing):</label>
+                    <input type="password" id="relayerPrivateKey" placeholder="0x... (keep this secure)" />
+                </div>
+                <div class="form-group">
+                    <label for="recipientAddress">Recipient Address (for test transfer):</label>
+                    <input type="text" id="recipientAddress" placeholder="0x..." />
+                </div>
+                <div class="form-group">
+                    <label for="transferAmount">Transfer Amount (in wei):</label>
+                    <input type="text" id="transferAmount" value="1000000000000000000" />
+                </div>
+                <button class="btn success" onclick="testGaslessTransfer()">🚀 Test Gasless Transfer</button>
+                <button class="btn secondary" onclick="generateTestWallets()">🔑 Generate Test Wallets</button>
+                <button class="btn" onclick="checkRelayerStatus()">🔍 Check Relayer Status</button>
+                <button class="btn" onclick="authorizeRelayer()">✅ Authorize Relayer</button>
+                <button class="btn" onclick="mintTokensToUser()">🪙 Mint Tokens to User</button>
+                <div id="gaslessResults" class="result"></div>
+            </div>
+
+            <div class="section">
+                <h2>🔧 Meta-Transaction Tools</h2>
+                <div class="form-group">
+                    <label for="functionData">Function Data (hex):</label>
+                    <textarea id="functionData" placeholder="0xa9059cbb000000000000000000000000..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="userAddress">User Address:</label>
+                    <input type="text" id="userAddress" placeholder="0x..." />
+                </div>
+                <button class="btn" onclick="generateMetaTxSignature()">✏️ Generate Meta-Transaction Signature</button>
+                <button class="btn secondary" onclick="verifyMetaTxSignature()">✅ Verify Signature</button>
+                <button class="btn" onclick="getMetaTxHash()">🔗 Get Meta-Transaction Hash</button>
+                <button class="btn" onclick="simulateMetaTx()">🧪 Simulate Meta-Transaction</button>
+                <div id="metaTxResults" class="result"></div>
+            </div>
+
+            <div class="section">
+                <h2>🔍 Diagnostic Results</h2>
+                <div id="diagnosticResults"></div>
+            </div>
+
+            <div class="section">
+                <h2>🔧 Manual Function Calls</h2>
+                <button class="btn" onclick="callName()">Call name()</button>
+                <button class="btn" onclick="callSymbol()">Call symbol()</button>
+                <button class="btn" onclick="callDecimals()">Call decimals()</button>
+                <button class="btn" onclick="callTotalSupply()">Call totalSupply()</button>
+                <button class="btn" onclick="callDomainSeparator()">Call DOMAIN_SEPARATOR()</button>
+                <button class="btn" onclick="callGetChainId()">Call getChainId()</button>
+                <button class="btn" onclick="callNonces()">Call nonces()</button>
+                <div id="manualResults" class="result"></div>
+            </div>
+
+            <div class="section">
+                <h2>🌐 Network Information</h2>
+                <button class="btn" onclick="getNetworkInfo()">Get Network Info</button>
+                <button class="btn secondary" onclick="checkBlockNumber()">Check Block Number</button>
+                <button class="btn" onclick="checkGasPrice()">Check Gas Price</button>
+                <div id="networkResults" class="result"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let provider;
+        let contractAddress;
+        let rpcUrl;
+
+        // Your custom contract ABI
+        const FULL_ABI = [
+            "function name() view returns (string)",
+            "function symbol() view returns (string)",
+            "function decimals() view returns (uint8)",
+            "function totalSupply() view returns (uint256)",
+            "function balanceOf(address) view returns (uint256)",
+            "function nonces(address) view returns (uint256)",
+            "function transfer(address to, uint256 amount) returns (bool)",
+            "function approve(address spender, uint256 amount) returns (bool)",
+            "function allowance(address owner, address spender) view returns (uint256)",
+            "function authorizeRelayer(address relayer)",
+            "function revokeRelayer(address relayer)",
+            "function authorizedRelayers(address) view returns (bool)",
+            "function executeMetaTransaction(address userAddress, bytes calldata functionSignature, bytes32 sigR, bytes32 sigS, uint8 sigV) payable returns (bytes memory)",
+            "function getMetaTransactionHash(address userAddress, bytes calldata functionSignature, uint256 nonce) view returns (bytes32)",
+            "function verifyMetaTransactionSignature(address userAddress, bytes calldata functionSignature, bytes32 sigR, bytes32 sigS, uint8 sigV) view returns (bool)",
+            "function DOMAIN_SEPARATOR() view returns (bytes32)",
+            "function getChainId() view returns (uint256)",
+            "function mint(address to, uint256 amount)",
+            "function burn(uint256 amount)",
+            "function permitNonces(address owner) view returns (uint256)",
+            "function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)",
+            "function batchTransfer(address[] calldata recipients, uint256[] calldata amounts)",
+            "function owner() view returns (address)"
+        ];
+
+        // Minimal ABI for testing
+        const MINIMAL_ABI = [
+            "function name() view returns (string)",
+            "function symbol() view returns (string)",
+            "function decimals() view returns (uint8)",
+            "function totalSupply() view returns (uint256)"
+        ];
+
+        // ERC20 ABI
+        const ERC20_ABI = [
+            "function name() view returns (string)",
+            "function symbol() view returns (string)", 
+            "function decimals() view returns (uint8)",
+            "function totalSupply() view returns (uint256)",
+            "function balanceOf(address) view returns (uint256)"
+        ];
+
+        function updateConfig() {
+            contractAddress = document.getElementById('contractAddress').value;
+            rpcUrl = document.getElementById('rpcUrl').value;
+            
+            if (rpcUrl) {
+                provider = new ethers.JsonRpcProvider(rpcUrl);
+            }
+        }
+
+        function showResult(elementId, message, type = 'success') {
+            const element = document.getElementById(elementId);
+            element.className = `result ${type}`;
+            element.textContent = message;
+        }
+
+        function showGaslessResult(message, type = 'success') {
+            showResult('gaslessResults', message, type);
+        }
+
+        function showMetaTxResult(message, type = 'success') {
+            showResult('metaTxResults', message, type);
+        }
+
+        function showManualResult(message, type = 'success') {
+            showResult('manualResults', message, type);
+        }
+
+        function showNetworkResult(message, type = 'success') {
+            showResult('networkResults', message, type);
+        }
+
+        function displayDiagnostics(diagnostics) {
+            const resultsDiv = document.getElementById('diagnosticResults');
+            resultsDiv.innerHTML = '';
+            
+            diagnostics.forEach(diagnostic => {
+                const div = document.createElement('div');
+                div.className = `diagnostic-item status-${diagnostic.status}`;
+                div.innerHTML = `
+                    <h4>${diagnostic.title}</h4>
+                    <p>${diagnostic.message}</p>
+                `;
+                resultsDiv.appendChild(div);
+            });
+        }
+
+        async function runDiagnostics() {
+            updateConfig();
+            
+            const resultsDiv = document.getElementById('diagnosticResults');
+            resultsDiv.innerHTML = '<p>Running diagnostics...</p>';
+            
+            const diagnostics = [];
+            
+            // Check 1: RPC Connection
+            try {
+                const network = await provider.getNetwork();
+                diagnostics.push({
+                    title: "RPC Connection",
+                    status: "good",
+                    message: `Connected to ${network.name} (Chain ID: ${network.chainId})`
+                });
+            } catch (error) {
+                diagnostics.push({
+                    title: "RPC Connection",
+                    status: "bad",
+                    message: `Failed to connect to RPC: ${error.message}`
+                });
+            }
+
+            // Check 2: Contract Exists
+            try {
+                const code = await provider.getCode(contractAddress);
+                if (code === '0x') {
+                    diagnostics.push({
+                        title: "Contract Deployment",
+                        status: "bad",
+                        message: "No contract code found at the given address. Contract may not be deployed."
+                    });
+                } else {
+                    diagnostics.push({
+                        title: "Contract Deployment",
+                        status: "good",
+                        message: `Contract code found (${code.length} bytes)`
+                    });
+                }
+            } catch (error) {
+                diagnostics.push({
+                    title: "Contract Deployment",
+                    status: "bad",
+                    message: `Error checking contract: ${error.message}`
+                });
+            }
+
+            // Check 3: Basic ERC20 Functions
+            const abis = [
+                { name: "Minimal ABI", abi: MINIMAL_ABI },
+                { name: "ERC20 ABI", abi: ERC20_ABI },
+                { name: "Full Contract ABI", abi: FULL_ABI }
+            ];
+
+            for (const { name, abi } of abis) {
+                try {
+                    const contract = new ethers.Contract(contractAddress, abi, provider);
+                    const nameResult = await contract.name();
+                    diagnostics.push({
+                        title: `${name} - name() Function`,
+                        status: "good",
+                        message: `Successfully called name(): "${nameResult}"`
+                    });
+                } catch (error) {
+                    diagnostics.push({
+                        title: `${name} - name() Function`,
+                        status: "bad",
+                        message: `Error calling name(): ${error.message}`
+                    });
+                }
+            }
+
+            // Check 4: Raw Call
+            try {
+                const nameSelector = "0x06fdde03"; // name() function selector
+                const result = await provider.call({
+                    to: contractAddress,
+                    data: nameSelector
+                });
+                
+                if (result === '0x') {
+                    diagnostics.push({
+                        title: "Raw name() Call",
+                        status: "bad",
+                        message: "Raw call returned empty data"
+                    });
+                } else {
+                    diagnostics.push({
+                        title: "Raw name() Call",
+                        status: "good",
+                        message: `Raw call returned: ${result}`
+                    });
+                }
+            } catch (error) {
+                diagnostics.push({
+                    title: "Raw name() Call",
+                    status: "bad",
+                    message: `Raw call failed: ${error.message}`
+                });
+            }
+
+            // Display results
+            displayDiagnostics(diagnostics);
+        }
+
+        async function runGaslessDiagnostics() {
+            updateConfig();
+            
+            const resultsDiv = document.getElementById('diagnosticResults');
+            resultsDiv.innerHTML = '<p>Running gasless transaction diagnostics...</p>';
+            
+            const diagnostics = [];
+            
+            try {
+                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
+                
+                // Check gasless-specific functions
+                const gaslessFunctions = [
+                    'DOMAIN_SEPARATOR',
+                    'getChainId',
+                    'authorizedRelayers',
+                    'getMetaTransactionHash',
+                    'verifyMetaTransactionSignature'
+                ];
+                
+                // Test DOMAIN_SEPARATOR
+                try {
+                    const domainSeparator = await contract.DOMAIN_SEPARATOR();
+                    diagnostics.push({
+                        title: "DOMAIN_SEPARATOR() Function",
+                        status: "good",
+                        message: `Successfully called DOMAIN_SEPARATOR(): ${domainSeparator}`
+                    });
+                } catch (error) {
+                    diagnostics.push({
+                        title: "DOMAIN_SEPARATOR() Function",
+                        status: "bad",
+                        message: `Error calling DOMAIN_SEPARATOR(): ${error.message}`
+                    });
+                }
+
+                // Test getChainId
+                try {
+                    const chainId = await contract.getChainId();
+                    diagnostics.push({
+                        title: "getChainId() Function",
+                        status: "good",
+                        message: `Successfully called getChainId(): ${chainId}`
+                    });
+                } catch (error) {
+                    diagnostics.push({
+                        title: "getChainId() Function",
+                        status: "bad",
+                        message: `Error calling getChainId(): ${error.message}`
+                    });
+                }
+
+                // Test authorizedRelayers with zero address
+                try {
+                    const isAuthorized = await contract.authorizedRelayers(ethers.ZeroAddress);
+                    diagnostics.push({
+                        title: "authorizedRelayers() Function",
+                        status: "good",
+                        message: `Successfully called authorizedRelayers(0x0): ${isAuthorized}`
+                    });
+                } catch (error) {
+                    diagnostics.push({
+                        title: "authorizedRelayers() Function",
+                        status: "bad",
+                        message: `Error calling authorizedRelayers(): ${error.message}`
+                    });
+                }
+
+                // Test nonces function
+                try {
+                    const nonce = await contract.nonces(ethers.ZeroAddress);
+                    diagnostics.push({
+                        title: "nonces() Function",
+                        status: "good",
+                        message: `Successfully called nonces(0x0): ${nonce}`
+                    });
+                } catch (error) {
+                    diagnostics.push({
+                        title: "nonces() Function",
+                        status: "bad",
+                        message: `Error calling nonces(): ${error.message}`
+                    });
+                }
+                
+                // Check EIP-712 domain separator
+                try {
+                    const domainSeparator = await contract.DOMAIN_SEPARATOR();
+                    const chainId = await contract.getChainId();
+                    diagnostics.push({
+                        title: "EIP-712 Domain Configuration",
+                        status: "good",
+                        message: `Domain Separator: ${domainSeparator}\nChain ID: ${chainId}`
+                    });
+                } catch (error) {
+                    diagnostics.push({
+                        title: "EIP-712 Domain Configuration",
+                        status: "bad",
+                        message: `Error getting domain info: ${error.message}`
+                    });
+                }
+                
+            } catch (error) {
+                diagnostics.push({
+                    title: "Gasless Contract Interface",
+                    status: "bad",
+                    message: `Error creating contract interface: ${error.message}`
+                });
+            }
+            
+            displayDiagnostics(diagnostics);
+        }
+
+        async function checkBasicContract() {
+            updateConfig();
+            
+            try {
+                const contract = new ethers.Contract(contractAddress, ERC20_ABI, provider);
+                
+                const name = await contract.name();
+                const symbol = await contract.symbol();
+                const decimals = await contract.decimals();
+                const totalSupply = await contract.totalSupply();
+                
+                showManualResult(`Basic Contract Info:
+Name: ${name}
+Symbol: ${symbol}
+Decimals: ${decimals}
+Total Supply: ${ethers.formatEther(totalSupply)} tokens`, 'success');
+            } catch (error) {
+                showManualResult(`Error checking basic contract: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkContractCode() {
+            updateConfig();
+            
+            try {
+                const code = await provider.getCode(contractAddress);
+                const codeSize = code.length;
+                
+                showManualResult(`Contract Code:
+Address: ${contractAddress}
+Code Size: ${codeSize} characters
+Code Present: ${code !== '0x' ? 'Yes' : 'No'}
+Code (first 200 chars): ${code.substring(0, 200)}...`, 'success');
+            } catch (error) {
+                showManualResult(`Error checking contract code: ${error.message}`, 'error');
+            }
+        }
+
+        async function generateTestWallets() {
+            try {
+                const userWallet = ethers.Wallet.createRandom();
+                const relayerWallet = ethers.Wallet.createRandom();
+                
+                document.getElementById('userPrivateKey').value = userWallet.privateKey;
+                document.getElementById('relayerPrivateKey').value = relayerWallet.privateKey;
+                document.getElementById('userAddress').value = userWallet.address;
+                document.getElementById('recipientAddress').value = relayerWallet.address;
+                
+                showGaslessResult(`Generated Test Wallets:
+User Address: ${userWallet.address}
+User Private Key: ${userWallet.privateKey}
+
+Relayer Address: ${relayerWallet.address}
+Relayer Private Key: ${relayerWallet.privateKey}
+
+⚠️ These are test wallets only. Never use in production!`, 'success');
+            } catch (error) {
+                showGaslessResult(`Error generating wallets: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkRelayerStatus() {
+            updateConfig();
+            
+            const relayerPrivateKey = document.getElementById('relayerPrivateKey').value;
+            
+            if (!relayerPrivateKey) {
+                showGaslessResult('Please enter a relayer private key', 'error');
+                return;
+            }
+            
+            try {
+                const relayerWallet = new ethers.Wallet(relayerPrivateKey);
+                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
+                
+                const isAuthorized = await contract.authorizedRelayers(relayerWallet.address);
+                const balance = await provider.getBalance(relayerWallet.address);
+                
+                showGaslessResult(`Relayer Status:
+Address: ${relayerWallet.address}
+Authorized: ${isAuthorized ? '✅ Yes' : '❌ No'}
+Balance: ${ethers.formatEther(balance)} ETH`, isAuthorized ? 'success' : 'warning');
+            } catch (error) {
+                showGaslessResult(`Error checking relayer status: ${error.message}`, 'error');
+            }
+        }
+
+        async function authorizeRelayer() {
+            updateConfig();
+            
+            const relayerPrivateKey = document.getElementById('relayerPrivateKey').value;
+            
+            if (!relayerPrivateKey) {
+                showGaslessResult('Please enter a relayer private key', 'error');
+                return;
+            }
+            
+            try {
+                const relayerWallet = new ethers.Wallet(relayerPrivateKey);
+                
+                showGaslessResult(`To authorize relayer ${relayerWallet.address}, the contract owner needs to call:
+authorizeRelayer("${relayerWallet.address}")
+
+This requires the owner's private key and gas fees.
+
+Function call data:
+${ethers.Interface.from(FULL_ABI).encodeFunctionData('authorizeRelayer', [relayerWallet.address])}`, 'warning');
+            } catch (error) {
+                showGaslessResult(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function mintTokensToUser() {
+            updateConfig();
+            
+            const userPrivateKey = document.getElementById('userPrivateKey').value;
+            const transferAmount = document.getElementById('transferAmount').value;
+            
+            if (!userPrivateKey || !transferAmount) {
+                showGaslessResult('Please enter user private key and transfer amount', 'error');
+                return;
+            }
+            
+            try {
+                const userWallet = new ethers.Wallet(userPrivateKey);
+                
+                showGaslessResult(`To mint ${ethers.formatEther(transferAmount)} tokens to user ${userWallet.address}, the contract owner needs to call:
+mint("${userWallet.address}", "${transferAmount}")
+
+This requires the owner's private key and gas fees.
+
+Function call data:
+${ethers.Interface.from(FULL_ABI).encodeFunctionData('mint', [userWallet.address, transferAmount])}`, 'warning');
+            } catch (error) {
+                showGaslessResult(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function generateMetaTxSignature() {
+            updateConfig();
+            
+            const userPrivateKey = document.getElementById('userPrivateKey').value;
+            const functionData = document.getElementById('functionData').value;
+            const userAddress = document.getElementById('userAddress').value;
+            
+            if (!userPrivateKey || !functionData || !userAddress) {
+                showMetaTxResult('Please fill in all required fields', 'error');
+                return;
+            }
+            
+            try {
+                const userWallet = new ethers.Wallet(userPrivateKey);
+                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
+                
+                // Get current nonce
+                const nonce = await contract.nonces(userAddress);
+                
+                // Create the meta-transaction hash
+                const metaTxHash = await contract.getMetaTransactionHash(
+                    userAddress,
+                    functionData,
+                    nonce
+                );
+                
+                // Sign the hash
+                const signature = await userWallet.signMessage(ethers.getBytes(metaTxHash));
+                const sig = ethers.Signature.from(signature);
+                
+                showMetaTxResult(`Meta-Transaction Signature Generated:
+User Address: ${userAddress}
+Nonce: ${nonce}
+Function Data: ${functionData}
+Meta-Tx Hash: ${metaTxHash}
+Signature: ${signature}
+R: ${sig.r}
+S: ${sig.s}
+V: ${sig.v}`, 'success');
+                
+} catch (error) {
+    showMetaTxResult(`Error generating signature: ${error.message}`, 'error');
+}
+        }
+
+        async function verifyMetaTxSignature() {
+            updateConfig();
+            
+            const userAddress = document.getElementById('userAddress').value;
+            const functionData = document.getElementById('functionData').value;
+            
+            if (!userAddress || !functionData) {
+                showMetaTxResult('Please fill in user address and function data', 'error');
+                return;
+            }
+            
+            try {
+                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
+                
+                // Extract signature components from the previous result
+                const resultText = document.getElementById('metaTxResults').textContent;
+                const rMatch = resultText.match(/R: (0x[a-fA-F0-9]{64})/);
+                const sMatch = resultText.match(/S: (0x[a-fA-F0-9]{64})/);
+                const vMatch = resultText.match(/V: (\d+)/);
+                
+                if (!rMatch || !sMatch || !vMatch) {
+                    showMetaTxResult('Please generate a signature first', 'error');
+                    return;
+                }
+                
+                const r = rMatch[1];
+                const s = sMatch[1];
+                const v = parseInt(vMatch[1]);
+                
+                const isValid = await contract.verifyMetaTransactionSignature(
+                    userAddress,
+                    functionData,
+                    r,
+                    s,
+                    v
+                );
+                
+                showMetaTxResult(`Signature Verification Result:
+User Address: ${userAddress}
+Function Data: ${functionData}
+R: ${r}
+S: ${s}
+V: ${v}
+Is Valid: ${isValid ? '✅ Valid' : '❌ Invalid'}`, isValid ? 'success' : 'error');
+                
+            } catch (error) {
+                showMetaTxResult(`Error verifying signature: ${error.message}`, 'error');
+            }
+        }
+
+        async function getMetaTxHash() {
+            updateConfig();
+            
+            const userAddress = document.getElementById('userAddress').value;
+            const functionData = document.getElementById('functionData').value;
+            
+            if (!userAddress || !functionData) {
+                showMetaTxResult('Please fill in user address and function data', 'error');
+                return;
+            }
+            
+            try {
+                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
+                const nonce = await contract.nonces(userAddress);
+                
+                const metaTxHash = await contract.getMetaTransactionHash(
+                    userAddress,
+                    functionData,
+                    nonce
+                );
+                
+                showMetaTxResult(`Meta-Transaction Hash:
+User Address: ${userAddress}
+Function Data: ${functionData}
+Nonce: ${nonce}
+Hash: ${metaTxHash}`, 'success');
+                
+            } catch (error) {
+                showMetaTxResult(`Error getting meta-transaction hash: ${error.message}`, 'error');
+            }
+        }
+
+        async function simulateMetaTx() {
+            updateConfig();
+            
+            const userAddress = document.getElementById('userAddress').value;
+            const functionData = document.getElementById('functionData').value;
+            const relayerPrivateKey = document.getElementById('relayerPrivateKey').value;
+            
+            if (!userAddress || !functionData || !relayerPrivateKey) {
+                showMetaTxResult('Please fill in all required fields including relayer private key', 'error');
+                return;
+            }
+            
+            try {
+                const relayerWallet = new ethers.Wallet(relayerPrivateKey, provider);
+                const contract = new ethers.Contract(contractAddress, FULL_ABI, relayerWallet);
+                
+                // Check if relayer is authorized
+                const isAuthorized = await contract.authorizedRelayers(relayerWallet.address);
+                if (!isAuthorized) {
+                    showMetaTxResult(`Relayer ${relayerWallet.address} is not authorized. Please authorize first.`, 'error');
+                    return;
+                }
+                
+                // Extract signature components
+                const resultText = document.getElementById('metaTxResults').textContent;
+                const rMatch = resultText.match(/R: (0x[a-fA-F0-9]{64})/);
+                const sMatch = resultText.match(/S: (0x[a-fA-F0-9]{64})/);
+                const vMatch = resultText.match(/V: (\d+)/);
+                
+                if (!rMatch || !sMatch || !vMatch) {
+                    showMetaTxResult('Please generate a signature first', 'error');
+                    return;
+                }
+                
+                const r = rMatch[1];
+                const s = sMatch[1];
+                const v = parseInt(vMatch[1]);
+                
+                // Simulate the transaction
+                const gasEstimate = await contract.executeMetaTransaction.estimateGas(
+                    userAddress,
+                    functionData,
+                    r,
+                    s,
+                    v
+                );
+                
+                showMetaTxResult(`Meta-Transaction Simulation:
+User Address: ${userAddress}
+Relayer Address: ${relayerWallet.address}
+Function Data: ${functionData}
+Estimated Gas: ${gasEstimate.toString()}
+Status: ✅ Simulation Successful
+Ready to execute!`, 'success');
+                
+            } catch (error) {
+                showMetaTxResult(`Simulation failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testGaslessTransfer() {
+            updateConfig();
+            
+            const userPrivateKey = document.getElementById('userPrivateKey').value;
+            const relayerPrivateKey = document.getElementById('relayerPrivateKey').value;
+            const recipientAddress = document.getElementById('recipientAddress').value;
+            const transferAmount = document.getElementById('transferAmount').value;
+            
+            if (!userPrivateKey || !relayerPrivateKey || !recipientAddress || !transferAmount) {
+                showGaslessResult('Please fill in all required fields', 'error');
+                return;
+            }
+            
+            try {
+                const userWallet = new ethers.Wallet(userPrivateKey);
+                const relayerWallet = new ethers.Wallet(relayerPrivateKey, provider);
+                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
+                const contractWithRelayer = new ethers.Contract(contractAddress, FULL_ABI, relayerWallet);
+                
+                showGaslessResult('Testing gasless transfer...', 'warning');
+                
+                // Step 1: Check user balance
+                const userBalance = await contract.balanceOf(userWallet.address);
+                if (userBalance < BigInt(transferAmount)) {
+                    showGaslessResult(`Insufficient balance. User has ${ethers.formatEther(userBalance)} tokens, needs ${ethers.formatEther(transferAmount)}`, 'error');
+                    return;
+                }
+                
+                // Step 2: Check relayer authorization
+                const isAuthorized = await contract.authorizedRelayers(relayerWallet.address);
+                if (!isAuthorized) {
+                    showGaslessResult(`Relayer ${relayerWallet.address} is not authorized`, 'error');
+                    return;
+                }
+                
+                // Step 3: Encode transfer function
+                const transferInterface = new ethers.Interface(FULL_ABI);
+                const functionData = transferInterface.encodeFunctionData('transfer', [recipientAddress, transferAmount]);
+                
+                // Step 4: Get nonce
+                const nonce = await contract.nonces(userWallet.address);
+                
+                // Step 5: Create meta-transaction hash
+                const metaTxHash = await contract.getMetaTransactionHash(
+                    userWallet.address,
+                    functionData,
+                    nonce
+                );
+                
+                // Step 6: Sign the hash
+                const signature = await userWallet.signMessage(ethers.getBytes(metaTxHash));
+                const sig = ethers.Signature.from(signature);
+                
+                // Step 7: Execute meta-transaction
+                const tx = await contractWithRelayer.executeMetaTransaction(
+                    userWallet.address,
+                    functionData,
+                    sig.r,
+                    sig.s,
+                    sig.v
+                );
+                
+                showGaslessResult(`✅ Gasless Transfer Successful!
+Transaction Hash: ${tx.hash}
+From: ${userWallet.address}
+To: ${recipientAddress}
+Amount: ${ethers.formatEther(transferAmount)} tokens
+Relayer: ${relayerWallet.address}
+Nonce: ${nonce}
+Gas Used: Paid by relayer
+
+Waiting for confirmation...`, 'success');
+                
+                // Wait for confirmation
+                const receipt = await tx.wait();
+                
+                showGaslessResult(`✅ Gasless Transfer Confirmed!
+Transaction Hash: ${tx.hash}
+Block Number: ${receipt.blockNumber}
+Gas Used: ${receipt.gasUsed}
+From: ${userWallet.address}
+To: ${recipientAddress}
+Amount: ${ethers.formatEther(transferAmount)} tokens
+Relayer: ${relayerWallet.address}`, 'success');
+                
+            } catch (error) {
+                showGaslessResult(`Gasless transfer failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Manual function calls
+        async function callName() {
+            updateConfig();
+            try {
+                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
+                const result = await contract.name();
+                showManualResult(`name(): ${result}`, 'success');
+            } catch (error) {
+                showManualResult(`Error calling name(): ${error.message}`, 'error');
+            }
+        }
+
+        async function callSymbol() {
+            updateConfig();
+            try {
+                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
+                const result = await contract.symbol();
+                showManualResult(`symbol(): ${result}`, 'success');
+            } catch (error) {
+                showManualResult(`Error calling symbol(): ${error.message}`, 'error');
+            }
+        }
+
+        async function callDecimals() {
+            updateConfig();
+            try {
+                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
+                const result = await contract.decimals();
+                showManualResult(`decimals(): ${result}`, 'success');
+            } catch (error) {
+                showManualResult(`Error calling decimals(): ${error.message}`, 'error');
+            }
+        }
+
+        async function callTotalSupply() {
+            updateConfig();
+            try {
+                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
+                const result = await contract.totalSupply();
+                showManualResult(`totalSupply(): ${ethers.formatEther(result)} tokens`, 'success');
+            } catch (error) {
+                showManualResult(`Error calling totalSupply(): ${error.message}`, 'error');
+            }
+        }
+
+        async function callDomainSeparator() {
+            updateConfig();
+            try {
+                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
+                const result = await contract.DOMAIN_SEPARATOR();
+                showManualResult(`DOMAIN_SEPARATOR(): ${result}`, 'success');
+            } catch (error) {
+                showManualResult(`Error calling DOMAIN_SEPARATOR(): ${error.message}`, 'error');
+            }
+        }
+
+        async function callGetChainId() {
+            updateConfig();
+            try {
+                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
+                const result = await contract.getChainId();
+                showManualResult(`getChainId(): ${result}`, 'success');
+            } catch (error) {
+                showManualResult(`Error calling getChainId(): ${error.message}`, 'error');
+            }
+        }
+
+        async function callNonces() {
+            updateConfig();
+            const userAddress = document.getElementById('userAddress').value || ethers.ZeroAddress;
+            
+            try {
+                const contract = new ethers.Contract(contractAddress, FULL_ABI, provider);
+                const result = await contract.nonces(userAddress);
+                showManualResult(`nonces(${userAddress}): ${result}`, 'success');
+            } catch (error) {
+                showManualResult(`Error calling nonces(): ${error.message}`, 'error');
+            }
+        }
+
+        // Network information functions
+        async function getNetworkInfo() {
+            updateConfig();
+            try {
+                const network = await provider.getNetwork();
+                const blockNumber = await provider.getBlockNumber();
+                
+                showNetworkResult(`Network Information:
+Name: ${network.name}
+Chain ID: ${network.chainId}
+Current Block: ${blockNumber}
+Contract Address: ${contractAddress}
+RPC URL: ${rpcUrl}`, 'success');
+            } catch (error) {
+                showNetworkResult(`Error getting network info: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkBlockNumber() {
+            updateConfig();
+            try {
+                const blockNumber = await provider.getBlockNumber();
+                showNetworkResult(`Current Block Number: ${blockNumber}`, 'success');
+            } catch (error) {
+                showNetworkResult(`Error getting block number: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkGasPrice() {
+            updateConfig();
+            try {
+                const gasPrice = await provider.getFeeData();
+                showNetworkResult(`Gas Price Information:
+Gas Price: ${ethers.formatUnits(gasPrice.gasPrice, 'gwei')} gwei
+Max Fee Per Gas: ${ethers.formatUnits(gasPrice.maxFeePerGas, 'gwei')} gwei
+Max Priority Fee Per Gas: ${ethers.formatUnits(gasPrice.maxPriorityFeePerGas, 'gwei')} gwei`, 'success');
+            } catch (error) {
+                showNetworkResult(`Error getting gas price: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateConfig();
+            
+            // Auto-generate function data for transfer when recipient and amount change
+            document.getElementById('recipientAddress').addEventListener('input', updateTransferFunctionData);
+            document.getElementById('transferAmount').addEventListener('input', updateTransferFunctionData);
+        });
+
+        function updateTransferFunctionData() {
+            const recipientAddress = document.getElementById('recipientAddress').value;
+            const transferAmount = document.getElementById('transferAmount').value;
+            
+            if (recipientAddress && transferAmount) {
+                try {
+                    const transferInterface = new ethers.Interface(FULL_ABI);
+                    const functionData = transferInterface.encodeFunctionData('transfer', [recipientAddress, transferAmount]);
+                    document.getElementById('functionData').value = functionData;
+                } catch (error) {
+                    console.log('Error encoding function data:', error);
+                }
+            }
+        }
+
+        // Utility function to format addresses
+        function formatAddress(address) {
+            return `${address.slice(0, 6)}...${address.slice(-4)}`;
+        }
+
+        // Add some helper functions for testing
+        window.testHelpers = {
+            // Generate a test transfer function data
+            generateTransferData: (to, amount) => {
+                const transferInterface = new ethers.Interface(FULL_ABI);
+                return transferInterface.encodeFunctionData('transfer', [to, amount]);
+            },
+            
+            // Generate a test approve function data
+            generateApproveData: (spender, amount) => {
+                const approveInterface = new ethers.Interface(FULL_ABI);
+                return approveInterface.encodeFunctionData('approve', [spender, amount]);
+            },
+            
+            // Convert ether to wei
+            toWei: (amount) => ethers.parseEther(amount.toString()),
+            
+            // Convert wei to ether
+            fromWei: (amount) => ethers.formatEther(amount)
+        };
+
+        console.log('Gasless Transaction Debugger loaded successfully!');
+        console.log('Test helpers available in window.testHelpers');
+    </script>
+</body>
+</html>
