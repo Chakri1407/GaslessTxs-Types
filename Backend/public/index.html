@@ -1051,125 +1051,511 @@
         }
     }
 
-    async function executeGaslessTransfer() {
-        if (!AppState.isConnected) {
-            Utils.showAlert('gaslessResults', '❌ Please connect to network first', 'error');
-            return;
-        }
+  
+  // ===========================================
+// LOCATION 1: Add these helper functions BEFORE your executeGaslessTransfer function
+// ===========================================
 
-        try {
-            Utils.showSpinner('executeSpinner', true);
-            document.getElementById('executeBtn').disabled = true;
+async function calculateOptimalGasPrice(provider) {
+    try {
+        const feeData = await provider.getFeeData();
+        console.log('📊 Network fee data:', {
+            gasPrice: feeData.gasPrice ? ethers.formatUnits(feeData.gasPrice, 'gwei') + ' gwei' : 'N/A',
+            maxFeePerGas: feeData.maxFeePerGas ? ethers.formatUnits(feeData.maxFeePerGas, 'gwei') + ' gwei' : 'N/A',
+            maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? ethers.formatUnits(feeData.maxPriorityFeePerGas, 'gwei') + ' gwei' : 'N/A'
+        });
+
+        // For Polygon networks, prioritize maxFeePerGas if available (EIP-1559)
+        if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
+            console.log('Using EIP-1559 pricing');
             
-            const userPrivateKey = document.getElementById('userPrivateKey').value.trim();
-            const relayerPrivateKey = document.getElementById('relayerPrivateKey').value.trim();
-            const recipientAddress = document.getElementById('recipientAddress').value.trim();
-            const transferAmount = document.getElementById('transferAmount').value.trim();
+            // Use the higher of network gasPrice or maxFeePerGas as base
+            const baseGasPrice = feeData.gasPrice || ethers.parseUnits('50', 'gwei');
+            const networkMaxFee = feeData.maxFeePerGas;
             
-            // Validate inputs
-            if (!userPrivateKey || !Utils.validatePrivateKey(userPrivateKey)) {
-                throw new Error('Invalid user private key');
-            }
+            // Take the higher value as our base and multiply by our factor
+            const higherBase = baseGasPrice > networkMaxFee ? baseGasPrice : networkMaxFee;
+            const multipliedMaxFee = higherBase * 5n; // Increased to 5x multiplier for reliability
             
-            if (!relayerPrivateKey || !Utils.validatePrivateKey(relayerPrivateKey)) {
-                throw new Error('Invalid relayer private key');
-            }
+            // Set higher minimums for Polygon Amoy (testnet can be congested)
+            const minMaxFee = ethers.parseUnits('500', 'gwei'); // Increased minimum
+            const minPriorityFee = ethers.parseUnits('100', 'gwei'); // Increased minimum
             
-            if (!recipientAddress || !Utils.validateAddress(recipientAddress)) {
-                throw new Error('Invalid recipient address');
-            }
+            const finalMaxFee = multipliedMaxFee > minMaxFee ? multipliedMaxFee : minMaxFee;
+            const finalPriorityFee = (feeData.maxPriorityFeePerGas * 5n) > minPriorityFee ? 
+                (feeData.maxPriorityFeePerGas * 5n) : minPriorityFee;
             
-            if (!transferAmount || isNaN(transferAmount) || parseFloat(transferAmount) <= 0) {
-                throw new Error('Invalid transfer amount');
-            }
-            
-            const userWallet = Utils.getWalletFromPrivateKey(userPrivateKey);
-            const relayerWallet = Utils.getWalletFromPrivateKey(relayerPrivateKey).connect(AppState.provider);
-            const decimals = await AppState.contract.decimals();
-            const amount = Utils.parseTokenAmount(transferAmount, decimals);
-            
-            // Check if relayer is authorized
-            const isAuthorized = await AppState.contract.authorizedRelayers(relayerWallet.address);
-            if (!isAuthorized) {
-                throw new Error('Relayer is not authorized. Please authorize the relayer first.');
-            }
-            
-            // Check balance
-            const balance = await AppState.contract.balanceOf(userWallet.address);
-            if (balance < amount) {
-                throw new Error('Insufficient balance');
-            }
-            
-            // Prepare the function signature for transfer
-            const functionSignature = AppState.contract.interface.encodeFunctionData('transfer', [
-                recipientAddress,
-                amount
-            ]);
-            
-            // Get current nonce
-            const nonce = await AppState.contract.nonces(userWallet.address);
-            
-            // Create the meta-transaction hash
-            const metaTxHash = await AppState.contract.getMetaTransactionHash(
-                userWallet.address,
-                functionSignature,
-                nonce
-            );
-            
-            // Sign the meta-transaction
-            const signature = await userWallet.signMessage(ethers.getBytes(metaTxHash));
-            const sigParams = ethers.Signature.from(signature);
-            
-            // Execute the meta-transaction
-            const contractWithRelayer = AppState.contract.connect(relayerWallet);
-            const tx = await contractWithRelayer.executeMetaTransaction(
-                userWallet.address,
-                functionSignature,
-                sigParams.r,
-                sigParams.s,
-                sigParams.v
-            );
-            
-            Utils.showAlert('gaslessResults', `⏳ Transaction submitted: ${tx.hash}`, 'info');
-            
-            // Wait for confirmation
-            const receipt = await tx.wait();
-            
-            // Update wallet info
-            await updateWalletInfo();
-            
-            // Add to transaction history
-            Utils.addTransaction({
-                hash: tx.hash,
-                from: userWallet.address,
-                to: recipientAddress,
-                amount: transferAmount,
-                type: 'Gasless Transfer',
-                status: 'confirmed',
-                gasUsed: receipt.gasUsed.toString(),
-                relayer: relayerWallet.address
+            console.log('⛽ EIP-1559 gas calculation:', {
+                baseGasPrice: ethers.formatUnits(baseGasPrice, 'gwei') + ' gwei',
+                networkMaxFee: ethers.formatUnits(networkMaxFee, 'gwei') + ' gwei',
+                finalMaxFee: ethers.formatUnits(finalMaxFee, 'gwei') + ' gwei',
+                finalPriorityFee: ethers.formatUnits(finalPriorityFee, 'gwei') + ' gwei'
             });
             
-            const successMessage = `
-                <strong>✅ Gasless Transfer Successful!</strong><br>
-                Transaction Hash: ${tx.hash}<br>
-                From: ${Utils.formatAddress(userWallet.address)}<br>
-                To: ${Utils.formatAddress(recipientAddress)}<br>
-                Amount: ${transferAmount} tokens<br>
-                Gas Used: ${receipt.gasUsed}<br>
-                Relayer: ${Utils.formatAddress(relayerWallet.address)}
-            `;
+            return {
+                maxFeePerGas: finalMaxFee,
+                maxPriorityFeePerGas: finalPriorityFee,
+                gasPrice: undefined // Don't use legacy gasPrice with EIP-1559
+            };
+        }
+
+        // Fallback to legacy gas pricing with higher multiplier
+        const networkGasPrice = feeData.gasPrice || ethers.parseUnits('50', 'gwei');
+        const gasPrice = networkGasPrice * 5n; // Increased to 5x multiplier
+        const minGasPrice = ethers.parseUnits('500', 'gwei'); // Higher minimum for Polygon Amoy
+        const finalGasPrice = gasPrice > minGasPrice ? gasPrice : minGasPrice;
+
+        console.log('⛽ Using legacy gas pricing:', {
+            networkGasPrice: ethers.formatUnits(networkGasPrice, 'gwei') + ' gwei',
+            calculatedGasPrice: ethers.formatUnits(gasPrice, 'gwei') + ' gwei',
+            finalGasPrice: ethers.formatUnits(finalGasPrice, 'gwei') + ' gwei'
+        });
+
+        return {
+            gasPrice: finalGasPrice,
+            maxFeePerGas: undefined,
+            maxPriorityFeePerGas: undefined
+        };
+    } catch (error) {
+        console.error('Error calculating gas price:', error);
+        // Ultra-safe fallback for Polygon Amoy
+        return {
+            gasPrice: ethers.parseUnits('600', 'gwei'),
+            maxFeePerGas: undefined,
+            maxPriorityFeePerGas: undefined
+        };
+    }
+} 
+
+// Transaction status checker function
+async function checkTransactionStatus(txHash, provider) {
+    try {
+        console.log(`🔍 Checking status for transaction: ${txHash}`);
+        
+        // Check if transaction exists
+        const tx = await provider.getTransaction(txHash);
+        if (!tx) {
+            return { status: 'not_found', message: 'Transaction not found in mempool' };
+        }
+        
+        console.log('Transaction found:', {
+            hash: tx.hash,
+            blockNumber: tx.blockNumber,
+            gasPrice: ethers.formatUnits(tx.gasPrice, 'gwei') + ' gwei',
+            gasLimit: tx.gasLimit.toString()
+        });
+        
+        // Check if transaction is pending
+        if (tx.blockNumber === null) {
+            return { 
+                status: 'pending', 
+                message: 'Transaction is still pending in mempool',
+                details: tx
+            };
+        }
+        
+        // Get transaction receipt
+        const receipt = await provider.getTransactionReceipt(txHash);
+        if (!receipt) {
+            return { 
+                status: 'pending', 
+                message: 'Transaction mined but receipt not yet available' 
+            };
+        }
+        
+        // Check transaction success
+        if (receipt.status === 1) {
+            return { 
+                status: 'success', 
+                message: 'Transaction confirmed successfully',
+                receipt: receipt
+            };
+        } else {
+            return { 
+                status: 'failed', 
+                message: 'Transaction failed/reverted',
+                receipt: receipt
+            };
+        }
+        
+    } catch (error) {
+        console.error('Error checking transaction status:', error);
+        return { 
+            status: 'error', 
+            message: `Error checking status: ${error.message}` 
+        };
+    }
+}
+
+// Enhanced transaction execution with retry logic
+async function executeTransactionWithRetry(contractWithRelayer, params, maxRetries = 2) {
+    let lastError;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            console.log(`🔄 Transaction attempt ${attempt}/${maxRetries}`);
             
-            Utils.showAlert('gaslessResults', successMessage, 'success');
+            // Calculate gas settings for this attempt
+            const gasSettings = await calculateOptimalGasPrice(AppState.provider);
+            
+            // Increase gas price with each retry
+            if (attempt > 1) {
+                if (gasSettings.gasPrice) {
+                    gasSettings.gasPrice = gasSettings.gasPrice * BigInt(attempt);
+                }
+                if (gasSettings.maxFeePerGas) {
+                    gasSettings.maxFeePerGas = gasSettings.maxFeePerGas * BigInt(attempt);
+                    gasSettings.maxPriorityFeePerGas = gasSettings.maxPriorityFeePerGas * BigInt(attempt);
+                }
+            }
+            
+            // Estimate gas with retry logic
+            let gasEstimate;
+            try {
+                gasEstimate = await contractWithRelayer.executeMetaTransaction.estimateGas(
+                    params.userAddress,
+                    params.functionSignature,
+                    params.sigR,
+                    params.sigS,
+                    params.sigV
+                );
+            } catch (estimateError) {
+                console.error(`Gas estimation failed on attempt ${attempt}:`, estimateError);
+                if (attempt === maxRetries) throw estimateError;
+                continue;
+            }
+            
+            // Use higher gas limit for retries
+            const gasMultiplier = attempt === 1 ? 2n : 3n;
+            const gasLimit = gasEstimate * gasMultiplier > 500000n ? gasEstimate * gasMultiplier : 500000n;
+            
+            console.log(`⛽ Gas settings for attempt ${attempt}:`, {
+                gasLimit: gasLimit.toString(),
+                gasPrice: gasSettings.gasPrice ? ethers.formatUnits(gasSettings.gasPrice, 'gwei') + ' gwei' : 'N/A',
+                maxFeePerGas: gasSettings.maxFeePerGas ? ethers.formatUnits(gasSettings.maxFeePerGas, 'gwei') + ' gwei' : 'N/A',
+                maxPriorityFeePerGas: gasSettings.maxPriorityFeePerGas ? ethers.formatUnits(gasSettings.maxPriorityFeePerGas, 'gwei') + ' gwei' : 'N/A'
+            });
+            
+            // Prepare transaction options
+            const txOptions = { gasLimit };
+            if (gasSettings.gasPrice) {
+                txOptions.gasPrice = gasSettings.gasPrice;
+            } else {
+                txOptions.maxFeePerGas = gasSettings.maxFeePerGas;
+                txOptions.maxPriorityFeePerGas = gasSettings.maxPriorityFeePerGas;
+            }
+            
+            // Execute transaction
+            const tx = await contractWithRelayer.executeMetaTransaction(
+                params.userAddress,
+                params.functionSignature,
+                params.sigR,
+                params.sigS,
+                params.sigV,
+                txOptions
+            );
+            
+            console.log(`✅ Transaction submitted on attempt ${attempt}:`, tx.hash);
+            
+            // Wait for confirmation with progressive timeout
+            const confirmationTimeout = attempt === 1 ? 120000 : 180000; // 2 min first, then 3 min
+            
+            const confirmationPromise = tx.wait();
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error(`Confirmation timeout after ${confirmationTimeout/1000} seconds`)), confirmationTimeout);
+            });
+            
+            const receipt = await Promise.race([confirmationPromise, timeoutPromise]);
+            
+            console.log(`✅ Transaction confirmed on attempt ${attempt}:`, receipt.transactionHash);
+            return { tx, receipt };
             
         } catch (error) {
-            Utils.showAlert('gaslessResults', `❌ Transaction failed: ${error.message}`, 'error');
-        } finally {
-            Utils.showSpinner('executeSpinner', false);
-            document.getElementById('executeBtn').disabled = false;
+            console.error(`❌ Attempt ${attempt} failed:`, error);
+            lastError = error;
+            
+            // Don't retry for certain errors
+            if (error.code === 'CALL_EXCEPTION' || 
+                error.message.includes('Invalid signature') ||
+                error.message.includes('Invalid nonce')) {
+                throw error;
+            }
+            
+            // Wait before retry (exponential backoff)
+            if (attempt < maxRetries) {
+                const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s...
+                console.log(`⏳ Waiting ${delay}ms before retry...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
         }
     }
+    
+    throw lastError;
+}
 
+// ===========================================
+// LOCATION 2: REPLACE the entire executeGaslessTransfer function with this updated version
+// ===========================================
+
+async function executeGaslessTransfer() {
+    if (!AppState.isConnected) {
+        Utils.showAlert('gaslessResults', '❌ Please connect to network first', 'error');
+        return;
+    }
+
+    try {
+        Utils.showSpinner('executeSpinner', true);
+        document.getElementById('executeBtn').disabled = true;
+        
+        const userPrivateKey = document.getElementById('userPrivateKey').value.trim();
+        const relayerPrivateKey = document.getElementById('relayerPrivateKey').value.trim();
+        const recipientAddress = document.getElementById('recipientAddress').value.trim();
+        const transferAmount = document.getElementById('transferAmount').value.trim();
+        
+        // Validate inputs
+        if (!userPrivateKey || !Utils.validatePrivateKey(userPrivateKey)) {
+            throw new Error('Invalid user private key');
+        }
+        
+        if (!relayerPrivateKey || !Utils.validatePrivateKey(relayerPrivateKey)) {
+            throw new Error('Invalid relayer private key');
+        }
+        
+        if (!recipientAddress || !Utils.validateAddress(recipientAddress)) {
+            throw new Error('Invalid recipient address');
+        }
+        
+        if (!transferAmount || isNaN(transferAmount) || parseFloat(transferAmount) <= 0) {
+            throw new Error('Invalid transfer amount');
+        }
+        
+        const userWallet = Utils.getWalletFromPrivateKey(userPrivateKey);
+        const relayerWallet = Utils.getWalletFromPrivateKey(relayerPrivateKey).connect(AppState.provider);
+        const decimals = await AppState.contract.decimals();
+        const amount = Utils.parseTokenAmount(transferAmount, decimals);
+        
+        console.log('🔍 Debug Info:');
+        console.log('User Address:', userWallet.address);
+        console.log('Relayer Address:', relayerWallet.address);
+        console.log('Recipient Address:', recipientAddress);
+        console.log('Amount:', amount.toString());
+        
+        // Check if relayer is authorized
+        const isAuthorized = await AppState.contract.authorizedRelayers(relayerWallet.address);
+        console.log('Relayer authorized:', isAuthorized);
+        if (!isAuthorized) {
+            throw new Error('Relayer is not authorized. Please authorize the relayer first.');
+        }
+        
+        // Check balance
+        const balance = await AppState.contract.balanceOf(userWallet.address);
+        console.log('User balance:', balance.toString());
+        console.log('Transfer amount:', amount.toString());
+        if (balance < amount) {
+            throw new Error('Insufficient balance');
+        }
+        
+        // Prepare the function signature for transfer
+        const functionSignature = AppState.contract.interface.encodeFunctionData('transfer', [
+            recipientAddress,
+            amount
+        ]);
+        console.log('Function signature:', functionSignature);
+        
+        // Get current nonce
+        const nonce = await AppState.contract.nonces(userWallet.address);
+        console.log('Current nonce:', nonce.toString());
+        
+        // Create the meta-transaction hash
+        const metaTxHash = await AppState.contract.getMetaTransactionHash(
+            userWallet.address,
+            functionSignature,
+            nonce
+        );
+        console.log('Meta-transaction hash:', metaTxHash);
+        
+        // EIP-712 signature
+        const domain = {
+            name: await AppState.contract.name(),
+            version: "1",
+            chainId: await AppState.contract.getChainId(),
+            verifyingContract: await AppState.contract.getAddress()
+        };
+        
+        const types = {
+            MetaTransaction: [
+                { name: "nonce", type: "uint256" },
+                { name: "from", type: "address" },
+                { name: "functionSignature", type: "bytes" }
+            ]
+        };
+        
+        const value = {
+            nonce: nonce,
+            from: userWallet.address,
+            functionSignature: functionSignature
+        };
+        
+        // Sign using EIP-712 typed data
+        const signature = await userWallet.signTypedData(domain, types, value);
+        const sigParams = ethers.Signature.from(signature);
+        
+        console.log('Signature components:', {
+            r: sigParams.r,
+            s: sigParams.s,
+            v: sigParams.v
+        });
+        
+        // Verify signature before sending transaction
+        const isValidSig = await AppState.contract.verifyMetaTransactionSignature(
+            userWallet.address,
+            functionSignature,
+            sigParams.r,
+            sigParams.s,
+            sigParams.v
+        );
+        
+        console.log('Signature verification result:', isValidSig);
+        
+        if (!isValidSig) {
+            throw new Error('❌ Signature verification failed. Check your private key and try again.');
+        }
+        
+        Utils.showAlert('gaslessResults', '✅ Signature verified. Executing transaction...', 'info');
+        
+        // Check relayer balance first
+        const relayerBalance = await AppState.provider.getBalance(relayerWallet.address);
+        console.log('💰 Relayer balance:', ethers.formatEther(relayerBalance), 'MATIC');
+        
+        if (relayerBalance < ethers.parseEther('0.01')) {
+            throw new Error('Relayer has insufficient MATIC balance for gas fees');
+        }
+        
+        // Execute the meta-transaction with enhanced retry logic
+        const contractWithRelayer = AppState.contract.connect(relayerWallet);
+        
+        Utils.showAlert('gaslessResults', '⏳ Submitting transaction...', 'info');
+        
+        // Use the enhanced transaction execution with retry
+        const { tx, receipt } = await executeTransactionWithRetry(contractWithRelayer, {
+            userAddress: userWallet.address,
+            functionSignature: functionSignature,
+            sigR: sigParams.r,
+            sigS: sigParams.s,
+            sigV: sigParams.v
+        });
+        
+        console.log('✅ Transaction confirmed:', receipt);
+        
+        // Update wallet info
+        await updateWalletInfo();
+        
+        // Add to transaction history
+        Utils.addTransaction({
+            hash: tx.hash,
+            from: userWallet.address,
+            to: recipientAddress,
+            amount: transferAmount,
+            type: 'Gasless Transfer',
+            status: 'confirmed',
+            gasUsed: receipt.gasUsed.toString(),
+            relayer: relayerWallet.address
+        });
+        
+        const successMessage = `
+            <strong>✅ Gasless Transfer Successful!</strong><br>
+            Transaction Hash: ${tx.hash}<br>
+            From: ${Utils.formatAddress(userWallet.address)}<br>
+            To: ${Utils.formatAddress(recipientAddress)}<br>
+            Amount: ${transferAmount} tokens<br>
+            Gas Used: ${receipt.gasUsed}<br>
+            Gas Price: ${receipt.effectiveGasPrice ? ethers.formatUnits(receipt.effectiveGasPrice, 'gwei') + ' gwei' : 'N/A'}<br>
+            Relayer: ${Utils.formatAddress(relayerWallet.address)}
+        `;
+        
+        Utils.showAlert('gaslessResults', successMessage, 'success');
+        
+    } catch (error) {
+        console.error('❌ Full error details:', error);
+        
+        // Enhanced error handling with transaction status checking
+        let errorMessage = error.message;
+        
+        // If it's a timeout and we have a transaction hash, check its status
+        if (error.message.includes('timeout') && typeof tx !== 'undefined' && tx.hash) {
+            Utils.showAlert('gaslessResults', '⏳ Transaction timed out, checking status...', 'info');
+            
+            const status = await checkTransactionStatus(tx.hash, AppState.provider);
+            
+            if (status.status === 'success') {
+                // Transaction actually succeeded!
+                const receipt = status.receipt;
+                
+                // Update wallet info
+                await updateWalletInfo();
+                
+                // Add to transaction history
+                Utils.addTransaction({
+                    hash: tx.hash,
+                    from: userWallet.address,
+                    to: recipientAddress,
+                    amount: transferAmount,
+                    type: 'Gasless Transfer',
+                    status: 'confirmed',
+                    gasUsed: receipt.gasUsed.toString(),
+                    relayer: relayerWallet.address
+                });
+                
+                const successMessage = `
+                    <strong>✅ Gasless Transfer Successful!</strong><br>
+                    <small>(Confirmed after timeout)</small><br>
+                    Transaction Hash: ${tx.hash}<br>
+                    From: ${Utils.formatAddress(userWallet.address)}<br>
+                    To: ${Utils.formatAddress(recipientAddress)}<br>
+                    Amount: ${transferAmount} tokens<br>
+                    Gas Used: ${receipt.gasUsed}<br>
+                    Relayer: ${Utils.formatAddress(relayerWallet.address)}
+                `;
+                
+                Utils.showAlert('gaslessResults', successMessage, 'success');
+                return; // Exit successfully
+            } else if (status.status === 'pending') {
+                errorMessage = `Transaction is still pending. Hash: ${tx.hash}. Check blockchain explorer for updates.`;
+            } else if (status.status === 'failed') {
+                errorMessage = `Transaction failed on blockchain. Hash: ${tx.hash}`;
+            } else {
+                errorMessage = `${status.message}. Hash: ${tx.hash}`;
+            }
+        } else {
+            // Original error handling for other cases
+            if (error.code === 'TIMEOUT') {
+                errorMessage = 'Transaction timed out. Please try again with higher gas price.';
+            } else if (error.code === 'INSUFFICIENT_FUNDS') {
+                errorMessage = 'Relayer has insufficient funds for gas fees.';
+            } else if (error.code === 'CALL_EXCEPTION') {
+                // Handle specific contract errors
+                if (error.data) {
+                    const errorCodes = {
+                        '0x8baa579f': 'Invalid signature',
+                        '0x756688fe': 'Invalid nonce',
+                        '0x82b42900': 'Unauthorized relayer',
+                        '0x8d21e65e': 'Execution failed'
+                    };
+                    errorMessage = errorCodes[error.data] || `Contract error: ${error.data}`;
+                }
+            } else if (error.code === 'NETWORK_ERROR') {
+                errorMessage = 'Network error. Please check your connection and try again.';
+            } else if (error.message.includes('timeout')) {
+                errorMessage = 'Transaction confirmation timed out. Check blockchain explorer for status.';
+            }
+        }
+        
+        Utils.showAlert('gaslessResults', `❌ Transaction failed: ${errorMessage}`, 'error');
+    } finally {
+        Utils.showSpinner('executeSpinner', false);
+        document.getElementById('executeBtn').disabled = false;
+    }
+} 
     // Admin functions
     async function authorizeRelayer() {
         if (!AppState.isConnected) {
