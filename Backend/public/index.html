@@ -694,7 +694,6 @@
             "function decimals() view returns (uint8)",
             "function totalSupply() view returns (uint256)",
             "function balanceOf(address) view returns (uint256)",
-            "function nonces(address) view returns (uint256)",
             "function transfer(address to, uint256 amount) returns (bool)",
             "function approve(address spender, uint256 amount) returns (bool)",
             "function allowance(address owner, address spender) view returns (uint256)",
@@ -709,9 +708,24 @@
             "function mint(address to, uint256 amount)",
             "function burn(uint256 amount)",
             "function owner() view returns (address)",
+            "function executeGaslessPOLTransfer(address from, address to, uint256 amount, uint256 nonce, bytes32 r, bytes32 s, uint8 v) payable returns (bytes memory)",
+            "function depositPOL() payable",
+            "function withdrawPOL(address to, uint256 amount)",
+            "function getPOLBalance(address account) view returns (uint256)",
+            "function polBalances(address) view returns (uint256)",
+            "function getGaslessPOLTransferHash(address from, address to, uint256 amount, uint256 nonce) view returns (bytes32)",
+            "function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)",
+            "function permitNonces(address) view returns (uint256)",
+            "function batchTransfer(address[] recipients, uint256[] amounts) returns (bool)",
+            "receive() external payable",
             "event Transfer(address indexed from, address indexed to, uint256 value)",
             "event Approval(address indexed owner, address indexed spender, uint256 value)",
-            "event MetaTransactionExecuted(address userAddress, address relayerAddress, bytes functionSignature)"
+            "event MetaTransactionExecuted(address userAddress, address relayerAddress, bytes functionSignature)",
+            "event GaslessPOLTransferExecuted(address indexed from, address indexed to, address indexed relayer, uint256 amount, uint256 nonce)",
+            "event OwnershipTransferred(address indexed previousOwner, address indexed newOwner)",
+            "event RelayerAuthorized(address indexed relayer)",
+            "event RelayerRevoked(address indexed relayer)",
+            "event EIP712DomainChanged()"
         ];
 
         // Utility functions
@@ -886,610 +900,486 @@
             statusText.textContent = status;
         }
 
-    function updateNetworkInfo() {
-        const networkInfoDiv = document.getElementById('networkInfo');
-        
-        if (!AppState.networkInfo) {
-            networkInfoDiv.innerHTML = '<p>No network information available</p>';
-            return;
-        }
-        
-        networkInfoDiv.innerHTML = `
-            <div class="network-info-item">
-                <div class="network-info-label">Network</div>
-                <div class="network-info-value">${AppState.networkInfo.name}</div>
-            </div>
-            <div class="network-info-item">
-                <div class="network-info-label">Chain ID</div>
-                <div class="network-info-value">${AppState.networkInfo.chainId}</div>
-            </div>
-            <div class="network-info-item">
-                <div class="network-info-label">Block Number</div>
-                <div class="network-info-value">${AppState.networkInfo.blockNumber}</div>
-            </div>
-            <div class="network-info-item">
-                <div class="network-info-label">Contract</div>
-                <div class="network-info-value">${Utils.formatAddress(AppState.config.contractAddress)}</div>
-            </div>
-        `;
-    }
-
-    // Wallet management functions
-    async function generateTestWallets() {
-        try {
-            // Generate two random wallets
-            const userWallet = ethers.Wallet.createRandom();
-            const relayerWallet = ethers.Wallet.createRandom();
+        function updateNetworkInfo() {
+            const networkInfoDiv = document.getElementById('networkInfo');
             
-            // Fill in the private keys
-            document.getElementById('userPrivateKey').value = userWallet.privateKey;
-            document.getElementById('relayerPrivateKey').value = relayerWallet.privateKey;
-            
-            // Update wallet info
-            await updateWalletInfo();
-            
-            Utils.showAlert('adminResults', '✅ Test wallets generated successfully!', 'success');
-            
-        } catch (error) {
-            Utils.showAlert('adminResults', `❌ Error generating wallets: ${error.message}`, 'error');
-        }
-    }
-
-    async function updateWalletInfo() {
-        if (!AppState.isConnected) {
-            Utils.showAlert('adminResults', '❌ Please connect to network first', 'error');
-            return;
-        }
-
-        try {
-            const userPrivateKey = document.getElementById('userPrivateKey').value.trim();
-            const relayerPrivateKey = document.getElementById('relayerPrivateKey').value.trim();
-            
-            // Update user wallet info
-            if (userPrivateKey && Utils.validatePrivateKey(userPrivateKey)) {
-                const userWallet = Utils.getWalletFromPrivateKey(userPrivateKey);
-                document.getElementById('userAddress').textContent = userWallet.address;
-                
-                // Get token balance
-                const balance = await AppState.contract.balanceOf(userWallet.address);
-                const decimals = await AppState.contract.decimals();
-                document.getElementById('userBalance').textContent = 
-                    `${Utils.formatTokenAmount(balance, decimals)} tokens`;
-            } else {
-                document.getElementById('userAddress').textContent = 'Invalid private key';
-                document.getElementById('userBalance').textContent = '-';
+            if (!AppState.networkInfo) {
+                networkInfoDiv.innerHTML = '<p>No network information available</p>';
+                return;
             }
             
-            // Update relayer wallet info
-            if (relayerPrivateKey && Utils.validatePrivateKey(relayerPrivateKey)) {
-                const relayerWallet = Utils.getWalletFromPrivateKey(relayerPrivateKey);
-                document.getElementById('relayerAddress').textContent = relayerWallet.address;
-                
-                // Check authorization status
-                const isAuthorized = await AppState.contract.authorizedRelayers(relayerWallet.address);
-                const statusElement = document.getElementById('relayerStatus');
-                
-                if (isAuthorized) {
-                    statusElement.innerHTML = '<span class="status-indicator status-success">✅ Authorized</span>';
-                } else {
-                    statusElement.innerHTML = '<span class="status-indicator status-error">❌ Not Authorized</span>';
-                }
-            } else {
-                document.getElementById('relayerAddress').textContent = 'Invalid private key';
-                document.getElementById('relayerStatus').innerHTML = '<span class="status-indicator status-error">❌ Invalid Key</span>';
-            }
-            
-        } catch (error) {
-            console.error('Error updating wallet info:', error);
-            Utils.showAlert('adminResults', `❌ Error updating wallet info: ${error.message}`, 'error');
-        }
-    }
-
-    function toggleVisibility(inputId) {
-        const input = document.getElementById(inputId);
-        const button = input.nextElementSibling;
-        
-        if (input.type === 'password') {
-            input.type = 'text';
-            button.textContent = '🙈';
-        } else {
-            input.type = 'password';
-            button.textContent = '👁️';
-        }
-    }
-
-    // Gasless transaction functions
-    async function simulateTransfer() {
-        if (!AppState.isConnected) {
-            Utils.showAlert('gaslessResults', '❌ Please connect to network first', 'error');
-            return;
-        }
-
-        try {
-            const userPrivateKey = document.getElementById('userPrivateKey').value.trim();
-            const recipientAddress = document.getElementById('recipientAddress').value.trim();
-            const transferAmount = document.getElementById('transferAmount').value.trim();
-            
-            // Validate inputs
-            if (!userPrivateKey || !Utils.validatePrivateKey(userPrivateKey)) {
-                throw new Error('Invalid user private key');
-            }
-            
-            if (!recipientAddress || !Utils.validateAddress(recipientAddress)) {
-                throw new Error('Invalid recipient address');
-            }
-            
-            if (!transferAmount || isNaN(transferAmount) || parseFloat(transferAmount) <= 0) {
-                throw new Error('Invalid transfer amount');
-            }
-            
-            const userWallet = Utils.getWalletFromPrivateKey(userPrivateKey);
-            const decimals = await AppState.contract.decimals();
-            const amount = Utils.parseTokenAmount(transferAmount, decimals);
-            
-            // Check balance
-            const balance = await AppState.contract.balanceOf(userWallet.address);
-            if (balance < amount) {
-                throw new Error('Insufficient balance');
-            }
-            
-            // Simulate the transaction
-            const simulationResult = `
-                <strong>Transaction Simulation:</strong><br>
-                From: ${userWallet.address}<br>
-                To: ${recipientAddress}<br>
-                Amount: ${transferAmount} tokens<br>
-                Current Balance: ${Utils.formatTokenAmount(balance, decimals)} tokens<br>
-                Remaining Balance: ${Utils.formatTokenAmount(balance - amount, decimals)} tokens<br>
-                ✅ Transaction is valid and ready to execute
+            networkInfoDiv.innerHTML = `
+                <div class="network-info-item">
+                    <div class="network-info-label">Network</div>
+                    <div class="network-info-value">${AppState.networkInfo.name}</div>
+                </div>
+                <div class="network-info-item">
+                    <div class="network-info-label">Chain ID</div>
+                    <div class="network-info-value">${AppState.networkInfo.chainId}</div>
+                </div>
+                <div class="network-info-item">
+                    <div class="network-info-label">Block Number</div>
+                    <div class="network-info-value">${AppState.networkInfo.blockNumber}</div>
+                </div>
+                <div class="network-info-item">
+                    <div class="network-info-label">Contract</div>
+                    <div class="network-info-value">${Utils.formatAddress(AppState.config.contractAddress)}</div>
+                </div>
             `;
-            
-            Utils.showAlert('gaslessResults', simulationResult, 'info');
-            
-        } catch (error) {
-            Utils.showAlert('gaslessResults', `❌ Simulation failed: ${error.message}`, 'error');
-        }
-    }
-
-  
-  // ===========================================
-// LOCATION 1: Add these helper functions BEFORE your executeGaslessTransfer function
-// ===========================================
-
-async function calculateOptimalGasPrice(provider) {
-    try {
-        const feeData = await provider.getFeeData();
-        console.log('📊 Network fee data:', {
-            gasPrice: feeData.gasPrice ? ethers.formatUnits(feeData.gasPrice, 'gwei') + ' gwei' : 'N/A',
-            maxFeePerGas: feeData.maxFeePerGas ? ethers.formatUnits(feeData.maxFeePerGas, 'gwei') + ' gwei' : 'N/A',
-            maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ? ethers.formatUnits(feeData.maxPriorityFeePerGas, 'gwei') + ' gwei' : 'N/A'
-        });
-
-        // For Polygon networks, prioritize maxFeePerGas if available (EIP-1559)
-        if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
-            console.log('Using EIP-1559 pricing');
-            
-            // Use the higher of network gasPrice or maxFeePerGas as base
-            const baseGasPrice = feeData.gasPrice || ethers.parseUnits('50', 'gwei');
-            const networkMaxFee = feeData.maxFeePerGas;
-            
-            // Take the higher value as our base and multiply by our factor
-            const higherBase = baseGasPrice > networkMaxFee ? baseGasPrice : networkMaxFee;
-            const multipliedMaxFee = higherBase * 5n; // Increased to 5x multiplier for reliability
-            
-            // Set higher minimums for Polygon Amoy (testnet can be congested)
-            const minMaxFee = ethers.parseUnits('500', 'gwei'); // Increased minimum
-            const minPriorityFee = ethers.parseUnits('100', 'gwei'); // Increased minimum
-            
-            const finalMaxFee = multipliedMaxFee > minMaxFee ? multipliedMaxFee : minMaxFee;
-            const finalPriorityFee = (feeData.maxPriorityFeePerGas * 5n) > minPriorityFee ? 
-                (feeData.maxPriorityFeePerGas * 5n) : minPriorityFee;
-            
-            console.log('⛽ EIP-1559 gas calculation:', {
-                baseGasPrice: ethers.formatUnits(baseGasPrice, 'gwei') + ' gwei',
-                networkMaxFee: ethers.formatUnits(networkMaxFee, 'gwei') + ' gwei',
-                finalMaxFee: ethers.formatUnits(finalMaxFee, 'gwei') + ' gwei',
-                finalPriorityFee: ethers.formatUnits(finalPriorityFee, 'gwei') + ' gwei'
-            });
-            
-            return {
-                maxFeePerGas: finalMaxFee,
-                maxPriorityFeePerGas: finalPriorityFee,
-                gasPrice: undefined // Don't use legacy gasPrice with EIP-1559
-            };
         }
 
-        // Fallback to legacy gas pricing with higher multiplier
-        const networkGasPrice = feeData.gasPrice || ethers.parseUnits('50', 'gwei');
-        const gasPrice = networkGasPrice * 5n; // Increased to 5x multiplier
-        const minGasPrice = ethers.parseUnits('500', 'gwei'); // Higher minimum for Polygon Amoy
-        const finalGasPrice = gasPrice > minGasPrice ? gasPrice : minGasPrice;
-
-        console.log('⛽ Using legacy gas pricing:', {
-            networkGasPrice: ethers.formatUnits(networkGasPrice, 'gwei') + ' gwei',
-            calculatedGasPrice: ethers.formatUnits(gasPrice, 'gwei') + ' gwei',
-            finalGasPrice: ethers.formatUnits(finalGasPrice, 'gwei') + ' gwei'
-        });
-
-        return {
-            gasPrice: finalGasPrice,
-            maxFeePerGas: undefined,
-            maxPriorityFeePerGas: undefined
-        };
-    } catch (error) {
-        console.error('Error calculating gas price:', error);
-        // Ultra-safe fallback for Polygon Amoy
-        return {
-            gasPrice: ethers.parseUnits('600', 'gwei'),
-            maxFeePerGas: undefined,
-            maxPriorityFeePerGas: undefined
-        };
-    }
-} 
-
-// Transaction status checker function
-async function checkTransactionStatus(txHash, provider) {
-    try {
-        console.log(`🔍 Checking status for transaction: ${txHash}`);
-        
-        // Check if transaction exists
-        const tx = await provider.getTransaction(txHash);
-        if (!tx) {
-            return { status: 'not_found', message: 'Transaction not found in mempool' };
-        }
-        
-        console.log('Transaction found:', {
-            hash: tx.hash,
-            blockNumber: tx.blockNumber,
-            gasPrice: ethers.formatUnits(tx.gasPrice, 'gwei') + ' gwei',
-            gasLimit: tx.gasLimit.toString()
-        });
-        
-        // Check if transaction is pending
-        if (tx.blockNumber === null) {
-            return { 
-                status: 'pending', 
-                message: 'Transaction is still pending in mempool',
-                details: tx
-            };
-        }
-        
-        // Get transaction receipt
-        const receipt = await provider.getTransactionReceipt(txHash);
-        if (!receipt) {
-            return { 
-                status: 'pending', 
-                message: 'Transaction mined but receipt not yet available' 
-            };
-        }
-        
-        // Check transaction success
-        if (receipt.status === 1) {
-            return { 
-                status: 'success', 
-                message: 'Transaction confirmed successfully',
-                receipt: receipt
-            };
-        } else {
-            return { 
-                status: 'failed', 
-                message: 'Transaction failed/reverted',
-                receipt: receipt
-            };
-        }
-        
-    } catch (error) {
-        console.error('Error checking transaction status:', error);
-        return { 
-            status: 'error', 
-            message: `Error checking status: ${error.message}` 
-        };
-    }
-}
-
-// Enhanced transaction execution with retry logic
-async function executeTransactionWithRetry(contractWithRelayer, params, maxRetries = 2) {
-    let lastError;
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            console.log(`🔄 Transaction attempt ${attempt}/${maxRetries}`);
-            
-            // Calculate gas settings for this attempt
-            const gasSettings = await calculateOptimalGasPrice(AppState.provider);
-            
-            // Increase gas price with each retry
-            if (attempt > 1) {
-                if (gasSettings.gasPrice) {
-                    gasSettings.gasPrice = gasSettings.gasPrice * BigInt(attempt);
-                }
-                if (gasSettings.maxFeePerGas) {
-                    gasSettings.maxFeePerGas = gasSettings.maxFeePerGas * BigInt(attempt);
-                    gasSettings.maxPriorityFeePerGas = gasSettings.maxPriorityFeePerGas * BigInt(attempt);
-                }
-            }
-            
-            // Estimate gas with retry logic
-            let gasEstimate;
+        // Wallet management functions
+        async function generateTestWallets() {
             try {
-                gasEstimate = await contractWithRelayer.executeMetaTransaction.estimateGas(
-                    params.userAddress,
-                    params.functionSignature,
-                    params.sigR,
-                    params.sigS,
-                    params.sigV
-                );
-            } catch (estimateError) {
-                console.error(`Gas estimation failed on attempt ${attempt}:`, estimateError);
-                if (attempt === maxRetries) throw estimateError;
-                continue;
+                // Generate two random wallets
+                const userWallet = ethers.Wallet.createRandom();
+                const relayerWallet = ethers.Wallet.createRandom();
+                
+                // Fill in the private keys
+                document.getElementById('userPrivateKey').value = userWallet.privateKey;
+                document.getElementById('relayerPrivateKey').value = relayerWallet.privateKey;
+                
+                // Update wallet info
+                await updateWalletInfo();
+                
+                Utils.showAlert('adminResults', '✅ Test wallets generated successfully!', 'success');
+                
+            } catch (error) {
+                Utils.showAlert('adminResults', `❌ Error generating wallets: ${error.message}`, 'error');
             }
+        }
+
+        async function updateWalletInfo() {
+            if (!AppState.isConnected) {
+                Utils.showAlert('adminResults', '❌ Please connect to network first', 'error');
+                return;
+            }
+
+            try {
+                const userPrivateKey = document.getElementById('userPrivateKey').value.trim();
+                const relayerPrivateKey = document.getElementById('relayerPrivateKey').value.trim();
+                
+                // Update user wallet info
+                if (userPrivateKey && Utils.validatePrivateKey(userPrivateKey)) {
+                    const userWallet = Utils.getWalletFromPrivateKey(userPrivateKey);
+                    document.getElementById('userAddress').textContent = userWallet.address;
+                    
+                    // Get token balance
+                    const balance = await AppState.contract.balanceOf(userWallet.address);
+                    const decimals = await AppState.contract.decimals();
+                    document.getElementById('userBalance').textContent = 
+                        `${Utils.formatTokenAmount(balance, decimals)} tokens`;
+                } else {
+                    document.getElementById('userAddress').textContent = 'Invalid private key';
+                    document.getElementById('userBalance').textContent = '-';
+                }
+                
+                // Update relayer wallet info
+                if (relayerPrivateKey && Utils.validatePrivateKey(relayerPrivateKey)) {
+                    const relayerWallet = Utils.getWalletFromPrivateKey(relayerPrivateKey);
+                    document.getElementById('relayerAddress').textContent = relayerWallet.address;
+                    
+                    // Check authorization status
+                    const isAuthorized = await AppState.contract.authorizedRelayers(relayerWallet.address);
+                    const statusElement = document.getElementById('relayerStatus');
+                    
+                    if (isAuthorized) {
+                        statusElement.innerHTML = '<span class="status-indicator status-success">✅ Authorized</span>';
+                    } else {
+                        statusElement.innerHTML = '<span class="status-indicator status-error">❌ Not Authorized</span>';
+                    }
+                } else {
+                    document.getElementById('relayerAddress').textContent = 'Invalid private key';
+                    document.getElementById('relayerStatus').innerHTML = '<span class="status-indicator status-error">❌ Invalid Key</span>';
+                }
+                
+            } catch (error) {
+                Utils.showAlert('adminResults', `❌ Error updating wallet info: ${error.message}`, 'error');
+            }
+        }
+
+        function toggleVisibility(inputId) {
+            const input = document.getElementById(inputId);
+            const button = input.nextElementSibling;
             
-            // Use higher gas limit for retries
-            const gasMultiplier = attempt === 1 ? 2n : 3n;
-            const gasLimit = gasEstimate * gasMultiplier > 500000n ? gasEstimate * gasMultiplier : 500000n;
-            
-            console.log(`⛽ Gas settings for attempt ${attempt}:`, {
-                gasLimit: gasLimit.toString(),
-                gasPrice: gasSettings.gasPrice ? ethers.formatUnits(gasSettings.gasPrice, 'gwei') + ' gwei' : 'N/A',
-                maxFeePerGas: gasSettings.maxFeePerGas ? ethers.formatUnits(gasSettings.maxFeePerGas, 'gwei') + ' gwei' : 'N/A',
-                maxPriorityFeePerGas: gasSettings.maxPriorityFeePerGas ? ethers.formatUnits(gasSettings.maxPriorityFeePerGas, 'gwei') + ' gwei' : 'N/A'
-            });
-            
-            // Prepare transaction options
-            const txOptions = { gasLimit };
-            if (gasSettings.gasPrice) {
-                txOptions.gasPrice = gasSettings.gasPrice;
+            if (input.type === 'password') {
+                input.type = 'text';
+                button.textContent = '🙈';
             } else {
-                txOptions.maxFeePerGas = gasSettings.maxFeePerGas;
-                txOptions.maxPriorityFeePerGas = gasSettings.maxPriorityFeePerGas;
-            }
-            
-            // Execute transaction
-            const tx = await contractWithRelayer.executeMetaTransaction(
-                params.userAddress,
-                params.functionSignature,
-                params.sigR,
-                params.sigS,
-                params.sigV,
-                txOptions
-            );
-            
-            console.log(`✅ Transaction submitted on attempt ${attempt}:`, tx.hash);
-            
-            // Wait for confirmation with progressive timeout
-            const confirmationTimeout = attempt === 1 ? 120000 : 180000; // 2 min first, then 3 min
-            
-            const confirmationPromise = tx.wait();
-            const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error(`Confirmation timeout after ${confirmationTimeout/1000} seconds`)), confirmationTimeout);
-            });
-            
-            const receipt = await Promise.race([confirmationPromise, timeoutPromise]);
-            
-            console.log(`✅ Transaction confirmed on attempt ${attempt}:`, receipt.transactionHash);
-            return { tx, receipt };
-            
-        } catch (error) {
-            console.error(`❌ Attempt ${attempt} failed:`, error);
-            lastError = error;
-            
-            // Don't retry for certain errors
-            if (error.code === 'CALL_EXCEPTION' || 
-                error.message.includes('Invalid signature') ||
-                error.message.includes('Invalid nonce')) {
-                throw error;
-            }
-            
-            // Wait before retry (exponential backoff)
-            if (attempt < maxRetries) {
-                const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s...
-                console.log(`⏳ Waiting ${delay}ms before retry...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
+                input.type = 'password';
+                button.textContent = '👁️';
             }
         }
-    }
-    
-    throw lastError;
-}
 
-// ===========================================
-// LOCATION 2: REPLACE the entire executeGaslessTransfer function with this updated version
-// ===========================================
+        // Gasless transaction functions
+        async function simulateTransfer() {
+            if (!AppState.isConnected) {
+                Utils.showAlert('gaslessResults', '❌ Please connect to network first', 'error');
+                return;
+            }
 
-async function executeGaslessTransfer() {
-    if (!AppState.isConnected) {
-        Utils.showAlert('gaslessResults', '❌ Please connect to network first', 'error');
-        return;
-    }
+            try {
+                const userPrivateKey = document.getElementById('userPrivateKey').value.trim();
+                const recipientAddress = document.getElementById('recipientAddress').value.trim();
+                const transferAmount = document.getElementById('transferAmount').value.trim();
+                
+                // Validate inputs
+                if (!userPrivateKey || !Utils.validatePrivateKey(userPrivateKey)) {
+                    throw new Error('Invalid user private key');
+                }
+                
+                if (!recipientAddress || !Utils.validateAddress(recipientAddress)) {
+                    throw new Error('Invalid recipient address');
+                }
+                
+                if (!transferAmount || isNaN(transferAmount) || parseFloat(transferAmount) <= 0) {
+                    throw new Error('Invalid transfer amount');
+                }
+                
+                const userWallet = Utils.getWalletFromPrivateKey(userPrivateKey);
+                const decimals = await AppState.contract.decimals();
+                const amount = Utils.parseTokenAmount(transferAmount, decimals);
+                
+                // Check balance
+                const balance = await AppState.contract.balanceOf(userWallet.address);
+                if (balance < amount) {
+                    throw new Error('Insufficient balance');
+                }
+                
+                // Simulate the transaction
+                const simulationResult = `
+                    <strong>Transaction Simulation:</strong><br>
+                    From: ${userWallet.address}<br>
+                    To: ${recipientAddress}<br>
+                    Amount: ${transferAmount} tokens<br>
+                    Current Balance: ${Utils.formatTokenAmount(balance, decimals)} tokens<br>
+                    Remaining Balance: ${Utils.formatTokenAmount(balance - amount, decimals)} tokens<br>
+                    ✅ Transaction is valid and ready to execute
+                `;
+                
+                Utils.showAlert('gaslessResults', simulationResult, 'info');
+                
+            } catch (error) {
+                Utils.showAlert('gaslessResults', `❌ Simulation failed: ${error.message}`, 'error');
+            }
+        }
 
-    try {
-        Utils.showSpinner('executeSpinner', true);
-        document.getElementById('executeBtn').disabled = true;
-        
-        const userPrivateKey = document.getElementById('userPrivateKey').value.trim();
-        const relayerPrivateKey = document.getElementById('relayerPrivateKey').value.trim();
-        const recipientAddress = document.getElementById('recipientAddress').value.trim();
-        const transferAmount = document.getElementById('transferAmount').value.trim();
-        
-        // Validate inputs
-        if (!userPrivateKey || !Utils.validatePrivateKey(userPrivateKey)) {
-            throw new Error('Invalid user private key');
+        async function calculateOptimalGasPrice(provider) {
+            try {
+                const feeData = await provider.getFeeData();
+
+                // For Polygon networks, prioritize maxFeePerGas if available (EIP-1559)
+                if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
+                    // Use the higher of network gasPrice or maxFeePerGas as base
+                    const baseGasPrice = feeData.gasPrice || ethers.parseUnits('50', 'gwei');
+                    const networkMaxFee = feeData.maxFeePerGas;
+                    
+                    // Take the higher value as our base and multiply by our factor
+                    const higherBase = baseGasPrice > networkMaxFee ? baseGasPrice : networkMaxFee;
+                    const multipliedMaxFee = higherBase * 5n; // Increased to 5x multiplier for reliability
+                    
+                    // Set higher minimums for Polygon Amoy (testnet can be congested)
+                    const minMaxFee = ethers.parseUnits('500', 'gwei'); // Increased minimum
+                    const minPriorityFee = ethers.parseUnits('100', 'gwei'); // Increased minimum
+                    
+                    const finalMaxFee = multipliedMaxFee > minMaxFee ? multipliedMaxFee : minMaxFee;
+                    const finalPriorityFee = (feeData.maxPriorityFeePerGas * 5n) > minPriorityFee ? 
+                        (feeData.maxPriorityFeePerGas * 5n) : minPriorityFee;
+                    
+                    return {
+                        maxFeePerGas: finalMaxFee,
+                        maxPriorityFeePerGas: finalPriorityFee,
+                        gasPrice: undefined // Don't use legacy gasPrice with EIP-1559
+                    };
+                }
+
+                // Fallback to legacy gas pricing with higher multiplier
+                const networkGasPrice = feeData.gasPrice || ethers.parseUnits('50', 'gwei');
+                const gasPrice = networkGasPrice * 5n; // Increased to 5x multiplier
+                const minGasPrice = ethers.parseUnits('500', 'gwei'); // Higher minimum for Polygon Amoy
+                const finalGasPrice = gasPrice > minGasPrice ? gasPrice : minGasPrice;
+
+                return {
+                    gasPrice: finalGasPrice,
+                    maxFeePerGas: undefined,
+                    maxPriorityFeePerGas: undefined
+                };
+            } catch (error) {
+                // Ultra-safe fallback for Polygon Amoy
+                return {
+                    gasPrice: ethers.parseUnits('600', 'gwei'),
+                    maxFeePerGas: undefined,
+                    maxPriorityFeePerGas: undefined
+                };
+            }
+        } 
+
+        // Transaction status checker function
+        async function checkTransactionStatus(txHash, provider) {
+            try {
+                // Check if transaction exists
+                const tx = await provider.getTransaction(txHash);
+                if (!tx) {
+                    return { status: 'not_found', message: 'Transaction not found in mempool' };
+                }
+                
+                // Check if transaction is pending
+                if (tx.blockNumber === null) {
+                    return { 
+                        status: 'pending', 
+                        message: 'Transaction is still pending in mempool',
+                        details: tx
+                    };
+                }
+                
+                // Get transaction receipt
+                const receipt = await provider.getTransactionReceipt(txHash);
+                if (!receipt) {
+                    return { 
+                        status: 'pending', 
+                        message: 'Transaction mined but receipt not yet available' 
+                    };
+                }
+                
+                // Check transaction success
+                if (receipt.status === 1) {
+                    return { 
+                        status: 'success', 
+                        message: 'Transaction confirmed successfully',
+                        receipt: receipt
+                    };
+                } else {
+                    return { 
+                        status: 'failed', 
+                        message: 'Transaction failed/reverted',
+                        receipt: receipt
+                    };
+                }
+                
+            } catch (error) {
+                return { 
+                    status: 'error', 
+                    message: `Error checking status: ${error.message}` 
+                };
+            }
         }
-        
-        if (!relayerPrivateKey || !Utils.validatePrivateKey(relayerPrivateKey)) {
-            throw new Error('Invalid relayer private key');
-        }
-        
-        if (!recipientAddress || !Utils.validateAddress(recipientAddress)) {
-            throw new Error('Invalid recipient address');
-        }
-        
-        if (!transferAmount || isNaN(transferAmount) || parseFloat(transferAmount) <= 0) {
-            throw new Error('Invalid transfer amount');
-        }
-        
-        const userWallet = Utils.getWalletFromPrivateKey(userPrivateKey);
-        const relayerWallet = Utils.getWalletFromPrivateKey(relayerPrivateKey).connect(AppState.provider);
-        const decimals = await AppState.contract.decimals();
-        const amount = Utils.parseTokenAmount(transferAmount, decimals);
-        
-        console.log('🔍 Debug Info:');
-        console.log('User Address:', userWallet.address);
-        console.log('Relayer Address:', relayerWallet.address);
-        console.log('Recipient Address:', recipientAddress);
-        console.log('Amount:', amount.toString());
-        
-        // Check if relayer is authorized
-        const isAuthorized = await AppState.contract.authorizedRelayers(relayerWallet.address);
-        console.log('Relayer authorized:', isAuthorized);
-        if (!isAuthorized) {
-            throw new Error('Relayer is not authorized. Please authorize the relayer first.');
-        }
-        
-        // Check balance
-        const balance = await AppState.contract.balanceOf(userWallet.address);
-        console.log('User balance:', balance.toString());
-        console.log('Transfer amount:', amount.toString());
-        if (balance < amount) {
-            throw new Error('Insufficient balance');
-        }
-        
-        // Prepare the function signature for transfer
-        const functionSignature = AppState.contract.interface.encodeFunctionData('transfer', [
-            recipientAddress,
-            amount
-        ]);
-        console.log('Function signature:', functionSignature);
-        
-        // Get current nonce
-        const nonce = await AppState.contract.nonces(userWallet.address);
-        console.log('Current nonce:', nonce.toString());
-        
-        // Create the meta-transaction hash
-        const metaTxHash = await AppState.contract.getMetaTransactionHash(
-            userWallet.address,
-            functionSignature,
-            nonce
-        );
-        console.log('Meta-transaction hash:', metaTxHash);
-        
-        // EIP-712 signature
-        const domain = {
-            name: await AppState.contract.name(),
-            version: "1",
-            chainId: await AppState.contract.getChainId(),
-            verifyingContract: await AppState.contract.getAddress()
-        };
-        
-        const types = {
-            MetaTransaction: [
-                { name: "nonce", type: "uint256" },
-                { name: "from", type: "address" },
-                { name: "functionSignature", type: "bytes" }
-            ]
-        };
-        
-        const value = {
-            nonce: nonce,
-            from: userWallet.address,
-            functionSignature: functionSignature
-        };
-        
-        // Sign using EIP-712 typed data
-        const signature = await userWallet.signTypedData(domain, types, value);
-        const sigParams = ethers.Signature.from(signature);
-        
-        console.log('Signature components:', {
-            r: sigParams.r,
-            s: sigParams.s,
-            v: sigParams.v
-        });
-        
-        // Verify signature before sending transaction
-        const isValidSig = await AppState.contract.verifyMetaTransactionSignature(
-            userWallet.address,
-            functionSignature,
-            sigParams.r,
-            sigParams.s,
-            sigParams.v
-        );
-        
-        console.log('Signature verification result:', isValidSig);
-        
-        if (!isValidSig) {
-            throw new Error('❌ Signature verification failed. Check your private key and try again.');
-        }
-        
-        Utils.showAlert('gaslessResults', '✅ Signature verified. Executing transaction...', 'info');
-        
-        // Check relayer balance first
-        const relayerBalance = await AppState.provider.getBalance(relayerWallet.address);
-        console.log('💰 Relayer balance:', ethers.formatEther(relayerBalance), 'MATIC');
-        
-        if (relayerBalance < ethers.parseEther('0.01')) {
-            throw new Error('Relayer has insufficient MATIC balance for gas fees');
-        }
-        
-        // Execute the meta-transaction with enhanced retry logic
-        const contractWithRelayer = AppState.contract.connect(relayerWallet);
-        
-        Utils.showAlert('gaslessResults', '⏳ Submitting transaction...', 'info');
-        
-        // Use the enhanced transaction execution with retry
-        const { tx, receipt } = await executeTransactionWithRetry(contractWithRelayer, {
-            userAddress: userWallet.address,
-            functionSignature: functionSignature,
-            sigR: sigParams.r,
-            sigS: sigParams.s,
-            sigV: sigParams.v
-        });
-        
-        console.log('✅ Transaction confirmed:', receipt);
-        
-        // Update wallet info
-        await updateWalletInfo();
-        
-        // Add to transaction history
-        Utils.addTransaction({
-            hash: tx.hash,
-            from: userWallet.address,
-            to: recipientAddress,
-            amount: transferAmount,
-            type: 'Gasless Transfer',
-            status: 'confirmed',
-            gasUsed: receipt.gasUsed.toString(),
-            relayer: relayerWallet.address
-        });
-        
-        const successMessage = `
-            <strong>✅ Gasless Transfer Successful!</strong><br>
-            Transaction Hash: ${tx.hash}<br>
-            From: ${Utils.formatAddress(userWallet.address)}<br>
-            To: ${Utils.formatAddress(recipientAddress)}<br>
-            Amount: ${transferAmount} tokens<br>
-            Gas Used: ${receipt.gasUsed}<br>
-            Gas Price: ${receipt.effectiveGasPrice ? ethers.formatUnits(receipt.effectiveGasPrice, 'gwei') + ' gwei' : 'N/A'}<br>
-            Relayer: ${Utils.formatAddress(relayerWallet.address)}
-        `;
-        
-        Utils.showAlert('gaslessResults', successMessage, 'success');
-        
-    } catch (error) {
-        console.error('❌ Full error details:', error);
-        
-        // Enhanced error handling with transaction status checking
-        let errorMessage = error.message;
-        
-        // If it's a timeout and we have a transaction hash, check its status
-        if (error.message.includes('timeout') && typeof tx !== 'undefined' && tx.hash) {
-            Utils.showAlert('gaslessResults', '⏳ Transaction timed out, checking status...', 'info');
+
+        // Enhanced transaction execution with retry logic
+        async function executeTransactionWithRetry(contractWithRelayer, params, maxRetries = 2) {
+            let lastError;
             
-            const status = await checkTransactionStatus(tx.hash, AppState.provider);
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    // Calculate gas settings for this attempt
+                    const gasSettings = await calculateOptimalGasPrice(AppState.provider);
+                    
+                    // Increase gas price with each retry
+                    if (attempt > 1) {
+                        if (gasSettings.gasPrice) {
+                            gasSettings.gasPrice = gasSettings.gasPrice * BigInt(attempt);
+                        }
+                        if (gasSettings.maxFeePerGas) {
+                            gasSettings.maxFeePerGas = gasSettings.maxFeePerGas * BigInt(attempt);
+                            gasSettings.maxPriorityFeePerGas = gasSettings.maxPriorityFeePerGas * BigInt(attempt);
+                        }
+                    }
+                    
+                    // Estimate gas with retry logic
+                    let gasEstimate;
+                    try {
+                        gasEstimate = await contractWithRelayer.executeMetaTransaction.estimateGas(
+                            params.userAddress,
+                            params.functionSignature,
+                            params.sigR,
+                            params.sigS,
+                            params.sigV
+                        );
+                    } catch (estimateError) {
+                        if (attempt === maxRetries) throw estimateError;
+                        continue;
+                    }
+                    
+                    // Use higher gas limit for retries
+                    const gasMultiplier = attempt === 1 ? 2n : 3n;
+                    const gasLimit = gasEstimate * gasMultiplier > 500000n ? gasEstimate * gasMultiplier : 500000n;
+                    
+                    // Prepare transaction options
+                    const txOptions = { gasLimit };
+                    if (gasSettings.gasPrice) {
+                        txOptions.gasPrice = gasSettings.gasPrice;
+                    } else {
+                        txOptions.maxFeePerGas = gasSettings.maxFeePerGas;
+                        txOptions.maxPriorityFeePerGas = gasSettings.maxPriorityFeePerGas;
+                    }
+                    
+                    // Execute transaction
+                    const tx = await contractWithRelayer.executeMetaTransaction(
+                        params.userAddress,
+                        params.functionSignature,
+                        params.sigR,
+                        params.sigS,
+                        params.sigV,
+                        txOptions
+                    );
+                    
+                    // Wait for confirmation with progressive timeout
+                    const confirmationTimeout = attempt === 1 ? 120000 : 180000; // 2 min first, then 3 min
+                    
+                    const confirmationPromise = tx.wait();
+                    const timeoutPromise = new Promise((_, reject) => {
+                        setTimeout(() => reject(new Error(`Confirmation timeout after ${confirmationTimeout/1000} seconds`)), confirmationTimeout);
+                    });
+                    
+                    const receipt = await Promise.race([confirmationPromise, timeoutPromise]);
+                    
+                    return { tx, receipt };
+                    
+                } catch (error) {
+                    lastError = error;
+                    
+                    // Don't retry for certain errors
+                    if (error.code === 'CALL_EXCEPTION' || 
+                        error.message.includes('Invalid signature') ||
+                        error.message.includes('Invalid nonce')) {
+                        throw error;
+                    }
+                    
+                    // Wait before retry (exponential backoff)
+                    if (attempt < maxRetries) {
+                        const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s...
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    }
+                }
+            }
             
-            if (status.status === 'success') {
-                // Transaction actually succeeded!
-                const receipt = status.receipt;
+            throw lastError;
+        }
+
+        async function executeGaslessTransfer() {
+            if (!AppState.isConnected) {
+                Utils.showAlert('gaslessResults', '❌ Please connect to network first', 'error');
+                return;
+            }
+
+            try {
+                Utils.showSpinner('executeSpinner', true);
+                document.getElementById('executeBtn').disabled = true;
+                
+                const userPrivateKey = document.getElementById('userPrivateKey').value.trim();
+                const relayerPrivateKey = document.getElementById('relayerPrivateKey').value.trim();
+                const recipientAddress = document.getElementById('recipientAddress').value.trim();
+                const transferAmount = document.getElementById('transferAmount').value.trim();
+                
+                // Validate inputs
+                if (!userPrivateKey || !Utils.validatePrivateKey(userPrivateKey)) {
+                    throw new Error('Invalid user private key');
+                }
+                
+                if (!relayerPrivateKey || !Utils.validatePrivateKey(relayerPrivateKey)) {
+                    throw new Error('Invalid relayer private key');
+                }
+                
+                if (!recipientAddress || !Utils.validateAddress(recipientAddress)) {
+                    throw new Error('Invalid recipient address');
+                }
+                
+                if (!transferAmount || isNaN(transferAmount) || parseFloat(transferAmount) <= 0) {
+                    throw new Error('Invalid transfer amount');
+                }
+                
+                const userWallet = Utils.getWalletFromPrivateKey(userPrivateKey);
+                const relayerWallet = Utils.getWalletFromPrivateKey(relayerPrivateKey).connect(AppState.provider);
+                const decimals = await AppState.contract.decimals();
+                const amount = Utils.parseTokenAmount(transferAmount, decimals);
+                
+                // Check if relayer is authorized
+                const isAuthorized = await AppState.contract.authorizedRelayers(relayerWallet.address);
+                if (!isAuthorized) {
+                    throw new Error('Relayer is not authorized. Please authorize the relayer first.');
+                }
+                
+                // Check balance
+                const balance = await AppState.contract.balanceOf(userWallet.address);
+                if (balance < amount) {
+                    throw new Error('Insufficient balance');
+                }
+                
+                // Prepare the function signature for transfer
+                const functionSignature = AppState.contract.interface.encodeFunctionData('transfer', [
+                    recipientAddress,
+                    amount
+                ]);
+                
+                // Get current nonce
+                const nonce = await AppState.contract.nonces(userWallet.address);
+                
+                // Create the meta-transaction hash
+                const metaTxHash = await AppState.contract.getMetaTransactionHash(
+                    userWallet.address,
+                    functionSignature,
+                    nonce
+                );
+                
+                // EIP-712 signature
+                const domain = {
+                    name: await AppState.contract.name(),
+                    version: "1",
+                    chainId: await AppState.contract.getChainId(),
+                    verifyingContract: AppState.config.contractAddress
+                };
+                
+                const types = {
+                    MetaTransaction: [
+                        { name: "nonce", type: "uint256" },
+                        { name: "from", type: "address" },
+                        { name: "functionSignature", type: "bytes" }
+                    ]
+                };
+                
+                const value = {
+                    nonce: nonce,
+                    from: userWallet.address,
+                    functionSignature: functionSignature
+                };
+                
+                // Sign using EIP-712 typed data
+                const signature = await userWallet.signTypedData(domain, types, value);
+                const sigParams = ethers.Signature.from(signature);
+                
+                // Verify signature before sending transaction
+                const isValidSig = await AppState.contract.verifyMetaTransactionSignature(
+                    userWallet.address,
+                    functionSignature,
+                    sigParams.r,
+                    sigParams.s,
+                    sigParams.v
+                );
+                
+                if (!isValidSig) {
+                    throw new Error('❌ Signature verification failed. Check your private key and try again.');
+                }
+                
+                Utils.showAlert('gaslessResults', '✅ Signature verified. Executing transaction...', 'info');
+                
+                // Check relayer balance first
+                const relayerBalance = await AppState.provider.getBalance(relayerWallet.address);
+                if (relayerBalance < ethers.parseEther('0.01')) {
+                    throw new Error('Relayer has insufficient MATIC balance for gas fees');
+                }
+                
+                // Execute the meta-transaction with enhanced retry logic
+                const contractWithRelayer = AppState.contract.connect(relayerWallet);
+                
+                Utils.showAlert('gaslessResults', '⏳ Submitting transaction...', 'info');
+                
+                // Use the enhanced transaction execution with retry
+                const { tx, receipt } = await executeTransactionWithRetry(contractWithRelayer, {
+                    userAddress: userWallet.address,
+                    functionSignature: functionSignature,
+                    sigR: sigParams.r,
+                    sigS: sigParams.s,
+                    sigV: sigParams.v
+                });
                 
                 // Update wallet info
                 await updateWalletInfo();
@@ -1508,306 +1398,347 @@ async function executeGaslessTransfer() {
                 
                 const successMessage = `
                     <strong>✅ Gasless Transfer Successful!</strong><br>
-                    <small>(Confirmed after timeout)</small><br>
                     Transaction Hash: ${tx.hash}<br>
                     From: ${Utils.formatAddress(userWallet.address)}<br>
                     To: ${Utils.formatAddress(recipientAddress)}<br>
                     Amount: ${transferAmount} tokens<br>
                     Gas Used: ${receipt.gasUsed}<br>
+                    Gas Price: ${receipt.effectiveGasPrice ? ethers.formatUnits(receipt.effectiveGasPrice, 'gwei') + ' gwei' : 'N/A'}<br>
                     Relayer: ${Utils.formatAddress(relayerWallet.address)}
                 `;
                 
                 Utils.showAlert('gaslessResults', successMessage, 'success');
-                return; // Exit successfully
-            } else if (status.status === 'pending') {
-                errorMessage = `Transaction is still pending. Hash: ${tx.hash}. Check blockchain explorer for updates.`;
-            } else if (status.status === 'failed') {
-                errorMessage = `Transaction failed on blockchain. Hash: ${tx.hash}`;
-            } else {
-                errorMessage = `${status.message}. Hash: ${tx.hash}`;
-            }
-        } else {
-            // Original error handling for other cases
-            if (error.code === 'TIMEOUT') {
-                errorMessage = 'Transaction timed out. Please try again with higher gas price.';
-            } else if (error.code === 'INSUFFICIENT_FUNDS') {
-                errorMessage = 'Relayer has insufficient funds for gas fees.';
-            } else if (error.code === 'CALL_EXCEPTION') {
-                // Handle specific contract errors
-                if (error.data) {
-                    const errorCodes = {
-                        '0x8baa579f': 'Invalid signature',
-                        '0x756688fe': 'Invalid nonce',
-                        '0x82b42900': 'Unauthorized relayer',
-                        '0x8d21e65e': 'Execution failed'
-                    };
-                    errorMessage = errorCodes[error.data] || `Contract error: ${error.data}`;
-                }
-            } else if (error.code === 'NETWORK_ERROR') {
-                errorMessage = 'Network error. Please check your connection and try again.';
-            } else if (error.message.includes('timeout')) {
-                errorMessage = 'Transaction confirmation timed out. Check blockchain explorer for status.';
-            }
-        }
-        
-        Utils.showAlert('gaslessResults', `❌ Transaction failed: ${errorMessage}`, 'error');
-    } finally {
-        Utils.showSpinner('executeSpinner', false);
-        document.getElementById('executeBtn').disabled = false;
-    }
-} 
-    // Admin functions
-    async function authorizeRelayer() {
-        if (!AppState.isConnected) {
-            Utils.showAlert('adminResults', '❌ Please connect to network first', 'error');
-            return;
-        }
-
-        try {
-            Utils.showSpinner('authorizeSpinner', true);
-            
-            const ownerPrivateKey = document.getElementById('ownerPrivateKey').value.trim();
-            const relayerPrivateKey = document.getElementById('relayerPrivateKey').value.trim();
-            
-            if (!ownerPrivateKey || !Utils.validatePrivateKey(ownerPrivateKey)) {
-                throw new Error('Invalid owner private key');
-            }
-            
-            if (!relayerPrivateKey || !Utils.validatePrivateKey(relayerPrivateKey)) {
-                throw new Error('Invalid relayer private key');
-            }
-            
-            const ownerWallet = Utils.getWalletFromPrivateKey(ownerPrivateKey).connect(AppState.provider);
-            const relayerWallet = Utils.getWalletFromPrivateKey(relayerPrivateKey);
-            
-            // Check if the owner is actually the owner
-            const contractOwner = await AppState.contract.owner();
-            if (ownerWallet.address.toLowerCase() !== contractOwner.toLowerCase()) {
-                throw new Error('Provided private key is not the contract owner');
-            }
-            
-            const contractWithOwner = AppState.contract.connect(ownerWallet);
-            const tx = await contractWithOwner.authorizeRelayer(relayerWallet.address);
-            
-            Utils.showAlert('adminResults', `⏳ Authorization transaction submitted: ${tx.hash}`, 'info');
-            
-            const receipt = await tx.wait();
-            
-            // Update wallet info
-            await updateWalletInfo();
-            
-            Utils.addTransaction({
-                hash: tx.hash,
-                from: ownerWallet.address,
-                to: relayerWallet.address,
-                type: 'Authorize Relayer',
-                status: 'confirmed',
-                gasUsed: receipt.gasUsed.toString()
-            });
-            
-            Utils.showAlert('adminResults', `✅ Relayer authorized successfully! Transaction: ${tx.hash}`, 'success');
-            
-        } catch (error) {
-            Utils.showAlert('adminResults', `❌ Authorization failed: ${error.message}`, 'error');
-        } finally {
-            Utils.showSpinner('authorizeSpinner', false);
-        }
-    }
-
-    async function revokeRelayer() {
-        if (!AppState.isConnected) {
-            Utils.showAlert('adminResults', '❌ Please connect to network first', 'error');
-            return;
-        }
-
-        try {
-            const ownerPrivateKey = document.getElementById('ownerPrivateKey').value.trim();
-            const relayerPrivateKey = document.getElementById('relayerPrivateKey').value.trim();
-            
-            if (!ownerPrivateKey || !Utils.validatePrivateKey(ownerPrivateKey)) {
-                throw new Error('Invalid owner private key');
-            }
-            
-            if (!relayerPrivateKey || !Utils.validatePrivateKey(relayerPrivateKey)) {
-                throw new Error('Invalid relayer private key');
-            }
-            
-            const ownerWallet = Utils.getWalletFromPrivateKey(ownerPrivateKey).connect(AppState.provider);
-            const relayerWallet = Utils.getWalletFromPrivateKey(relayerPrivateKey);
-            
-            // Check if the owner is actually the owner
-            const contractOwner = await AppState.contract.owner();
-            if (ownerWallet.address.toLowerCase() !== contractOwner.toLowerCase()) {
-                throw new Error('Provided private key is not the contract owner');
-            }
-            
-            const contractWithOwner = AppState.contract.connect(ownerWallet);
-            const tx = await contractWithOwner.revokeRelayer(relayerWallet.address);
-            
-            Utils.showAlert('adminResults', `⏳ Revocation transaction submitted: ${tx.hash}`, 'info');
-            
-            const receipt = await tx.wait();
-            
-            // Update wallet info
-            await updateWalletInfo();
-            
-            Utils.addTransaction({
-                hash: tx.hash,
-                from: ownerWallet.address,
-                to: relayerWallet.address,
-                type: 'Revoke Relayer',
-                status: 'confirmed',
-                gasUsed: receipt.gasUsed.toString()
-            });
-            
-            Utils.showAlert('adminResults', `✅ Relayer revoked successfully! Transaction: ${tx.hash}`, 'success');
-            
-        } catch (error) {
-            Utils.showAlert('adminResults', `❌ Revocation failed: ${error.message}`, 'error');
-        }
-    }
-
-    async function mintTokens() {
-        if (!AppState.isConnected) {
-            Utils.showAlert('adminResults', '❌ Please connect to network first', 'error');
-            return;
-        }
-
-        try {
-            Utils.showSpinner('mintSpinner', true);
-            
-            const ownerPrivateKey = document.getElementById('ownerPrivateKey').value.trim();
-            const userPrivateKey = document.getElementById('userPrivateKey').value.trim();
-            
-            if (!ownerPrivateKey || !Utils.validatePrivateKey(ownerPrivateKey)) {
-                throw new Error('Invalid owner private key');
-            }
-            
-            if (!userPrivateKey || !Utils.validatePrivateKey(userPrivateKey)) {
-                throw new Error('Invalid user private key (recipient)');
-            }
-            
-            const ownerWallet = Utils.getWalletFromPrivateKey(ownerPrivateKey).connect(AppState.provider);
-            const userWallet = Utils.getWalletFromPrivateKey(userPrivateKey);
-            
-            // Check if the owner is actually the owner
-            const contractOwner = await AppState.contract.owner();
-            if (ownerWallet.address.toLowerCase() !== contractOwner.toLowerCase()) {
-                throw new Error('Provided private key is not the contract owner');
-            }
-            
-            const decimals = await AppState.contract.decimals();
-            const mintAmount = Utils.parseTokenAmount('1000', decimals); // Mint 1000 tokens
-            
-            const contractWithOwner = AppState.contract.connect(ownerWallet);
-            const tx = await contractWithOwner.mint(userWallet.address, mintAmount);
-            
-            Utils.showAlert('adminResults', `⏳ Mint transaction submitted: ${tx.hash}`, 'info');
-            
-            const receipt = await tx.wait();
-            
-            // Update wallet info
-            await updateWalletInfo();
-            
-            Utils.addTransaction({
-                hash: tx.hash,
-                from: ownerWallet.address,
-                to: userWallet.address,
-                amount: '1000',
-                type: 'Mint Tokens',
-                status: 'confirmed',
-                gasUsed: receipt.gasUsed.toString()
-            });
-            
-            Utils.showAlert('adminResults', `✅ Tokens minted successfully! Transaction: ${tx.hash}`, 'success');
-            
-        } catch (error) {
-            Utils.showAlert('adminResults', `❌ Minting failed: ${error.message}`, 'error');
-        } finally {
-            Utils.showSpinner('mintSpinner', false);
-        }
-    }
-
-    // Transaction history
-    function updateTransactionHistory() {
-        const historyDiv = document.getElementById('transactionHistory');
-        
-        if (AppState.transactions.length === 0) {
-            historyDiv.innerHTML = '<p class="text-gray-500">No transactions yet</p>';
-            return;
-        }
-        
-        const historyHTML = AppState.transactions.map(tx => `
-            <div class="card">
-                <div class="card-header">
-                    <span class="status-indicator status-${tx.status === 'confirmed' ? 'success' : 'warning'}">
-                        ${tx.status === 'confirmed' ? '✅' : '⏳'} ${tx.type}
-                    </span>
-                    <span style="float: right; font-size: 0.75rem; color: var(--gray-500);">
-                        ${new Date(tx.timestamp).toLocaleString()}
-                    </span>
-                </div>
-                <div style="font-size: 0.875rem; color: var(--gray-600);">
-                    <strong>Hash:</strong> ${tx.hash}<br>
-                    <strong>From:</strong> ${Utils.formatAddress(tx.from)}<br>
-                    <strong>To:</strong> ${Utils.formatAddress(tx.to)}<br>
-                    ${tx.amount ? `<strong>Amount:</strong> ${tx.amount} tokens<br>` : ''}
-                    ${tx.gasUsed ? `<strong>Gas Used:</strong> ${tx.gasUsed}<br>` : ''}
-                    ${tx.relayer ? `<strong>Relayer:</strong> ${Utils.formatAddress(tx.relayer)}<br>` : ''}
-                </div>
-            </div>
-        `).join('');
-        
-        historyDiv.innerHTML = historyHTML;
-    }
-
-    // Event listeners and initialization
-    document.addEventListener('DOMContentLoaded', function() {
-        // Set up event listeners for real-time updates
-        document.getElementById('userPrivateKey').addEventListener('input', debounce(updateWalletInfo, 1000));
-        document.getElementById('relayerPrivateKey').addEventListener('input', debounce(updateWalletInfo, 1000));
-        
-        // Initialize transaction history
-        updateTransactionHistory();
-        
-        // Update network info periodically
-        setInterval(async () => {
-            if (AppState.isConnected && AppState.provider) {
-                try {
-                    const blockNumber = await AppState.provider.getBlockNumber();
-                    if (AppState.networkInfo) {
-                        AppState.networkInfo.blockNumber = blockNumber;
-                        updateNetworkInfo();
+                
+            } catch (error) {
+                let errorMessage = error.message;
+                
+                // If it's a timeout and we have a transaction hash, check its status
+                if (error.message.includes('timeout') && typeof tx !== 'undefined' && tx.hash) {
+                    Utils.showAlert('gaslessResults', '⏳ Transaction timed out, checking status...', 'info');
+                    
+                    const status = await checkTransactionStatus(tx.hash, AppState.provider);
+                    
+                    if (status.status === 'success') {
+                        // Transaction actually succeeded!
+                        const receipt = status.receipt;
+                        
+                        // Update wallet info
+                        await updateWalletInfo();
+                        
+                        // Add to transaction history
+                        Utils.addTransaction({
+                            hash: tx.hash,
+                            from: userWallet.address,
+                            to: recipientAddress,
+                            amount: transferAmount,
+                            type: 'Gasless Transfer',
+                            status: 'confirmed',
+                            gasUsed: receipt.gasUsed.toString(),
+                            relayer: relayerWallet.address
+                        });
+                        
+                        const successMessage = `
+                            <strong>✅ Gasless Transfer Successful!</strong><br>
+                            <small>(Confirmed after timeout)</small><br>
+                            Transaction Hash: ${tx.hash}<br>
+                            From: ${Utils.formatAddress(userWallet.address)}<br>
+                            To: ${Utils.formatAddress(recipientAddress)}<br>
+                            Amount: ${transferAmount} tokens<br>
+                            Gas Used: ${receipt.gasUsed}<br>
+                            Relayer: ${Utils.formatAddress(relayerWallet.address)}
+                        `;
+                        
+                        Utils.showAlert('gaslessResults', successMessage, 'success');
+                        return; // Exit successfully
+                    } else if (status.status === 'pending') {
+                        errorMessage = `Transaction is still pending. Hash: ${tx.hash}. Check blockchain explorer for updates.`;
+                    } else if (status.status === 'failed') {
+                        errorMessage = `Transaction failed on blockchain. Hash: ${tx.hash}`;
+                    } else {
+                        errorMessage = `${status.message}. Hash: ${tx.hash}`;
                     }
-                } catch (error) {
-                    console.error('Error updating block number:', error);
+                } else {
+                    // Original error handling for other cases
+                    if (error.code === 'TIMEOUT') {
+                        errorMessage = 'Transaction timed out. Please try again with higher gas price.';
+                    } else if (error.code === 'INSUFFICIENT_FUNDS') {
+                        errorMessage = 'Relayer has insufficient funds for gas fees.';
+                    } else if (error.code === 'CALL_EXCEPTION') {
+                        // Handle specific contract errors
+                        if (error.data) {
+                            const errorCodes = {
+                                '0x8baa579f': 'Invalid signature',
+                                '0x756688fe': 'Invalid nonce',
+                                '0x82b42900': 'Unauthorized relayer',
+                                '0x8d21e65e': 'Execution failed'
+                            };
+                            errorMessage = errorCodes[error.data] || `Contract error: ${error.data}`;
+                        }
+                    } else if (error.code === 'NETWORK_ERROR') {
+                        errorMessage = 'Network error. Please check your connection and try again.';
+                    } else if (error.message.includes('timeout')) {
+                        errorMessage = 'Transaction confirmation timed out. Check blockchain explorer for status.';
+                    }
                 }
+                
+                Utils.showAlert('gaslessResults', `❌ Transaction failed: ${errorMessage}`, 'error');
+            } finally {
+                Utils.showSpinner('executeSpinner', false);
+                document.getElementById('executeBtn').disabled = false;
             }
-        }, 15000); // Update every 15 seconds
-    });
+        } 
 
-    // Utility function for debouncing
-    function debounce(func, wait) {
-        let timeout;
-        return function executedFunction(...args) {
-            const later = () => {
+        // Admin functions
+        async function authorizeRelayer() {
+            if (!AppState.isConnected) {
+                Utils.showAlert('adminResults', '❌ Please connect to network first', 'error');
+                return;
+            }
+
+            try {
+                Utils.showSpinner('authorizeSpinner', true);
+                
+                const ownerPrivateKey = document.getElementById('ownerPrivateKey').value.trim();
+                const relayerPrivateKey = document.getElementById('relayerPrivateKey').value.trim();
+                
+                if (!ownerPrivateKey || !Utils.validatePrivateKey(ownerPrivateKey)) {
+                    throw new Error('Invalid owner private key');
+                }
+                
+                if (!relayerPrivateKey || !Utils.validatePrivateKey(relayerPrivateKey)) {
+                    throw new Error('Invalid relayer private key');
+                }
+                
+                const ownerWallet = Utils.getWalletFromPrivateKey(ownerPrivateKey).connect(AppState.provider);
+                const relayerWallet = Utils.getWalletFromPrivateKey(relayerPrivateKey);
+                
+                // Check if the owner is actually the owner
+                const contractOwner = await AppState.contract.owner();
+                if (ownerWallet.address.toLowerCase() !== contractOwner.toLowerCase()) {
+                    throw new Error('Provided private key is not the contract owner');
+                }
+                
+                const contractWithOwner = AppState.contract.connect(ownerWallet);
+                const tx = await contractWithOwner.authorizeRelayer(relayerWallet.address);
+                
+                Utils.showAlert('adminResults', `⏳ Authorization transaction submitted: ${tx.hash}`, 'info');
+                
+                const receipt = await tx.wait();
+                
+                // Update wallet info
+                await updateWalletInfo();
+                
+                Utils.addTransaction({
+                    hash: tx.hash,
+                    from: ownerWallet.address,
+                    to: relayerWallet.address,
+                    type: 'Authorize Relayer',
+                    status: 'confirmed',
+                    gasUsed: receipt.gasUsed.toString()
+                });
+                
+                Utils.showAlert('adminResults', `✅ Relayer authorized successfully! Transaction: ${tx.hash}`, 'success');
+                
+            } catch (error) {
+                Utils.showAlert('adminResults', `❌ Authorization failed: ${error.message}`, 'error');
+            } finally {
+                Utils.showSpinner('authorizeSpinner', false);
+            }
+        }
+
+        async function revokeRelayer() {
+            if (!AppState.isConnected) {
+                Utils.showAlert('adminResults', '❌ Please connect to network first', 'error');
+                return;
+            }
+
+            try {
+                const ownerPrivateKey = document.getElementById('ownerPrivateKey').value.trim();
+                const relayerPrivateKey = document.getElementById('relayerPrivateKey').value.trim();
+                
+                if (!ownerPrivateKey || !Utils.validatePrivateKey(ownerPrivateKey)) {
+                    throw new Error('Invalid owner private key');
+                }
+                
+                if (!relayerPrivateKey || !Utils.validatePrivateKey(relayerPrivateKey)) {
+                    throw new Error('Invalid relayer private key');
+                }
+                
+                const ownerWallet = Utils.getWalletFromPrivateKey(ownerPrivateKey).connect(AppState.provider);
+                const relayerWallet = Utils.getWalletFromPrivateKey(relayerPrivateKey);
+                
+                // Check if the owner is actually the owner
+                const contractOwner = await AppState.contract.owner();
+                if (ownerWallet.address.toLowerCase() !== contractOwner.toLowerCase()) {
+                    throw new Error('Provided private key is not the contract owner');
+                }
+                
+                const contractWithOwner = AppState.contract.connect(ownerWallet);
+                const tx = await contractWithOwner.revokeRelayer(relayerWallet.address);
+                
+                Utils.showAlert('adminResults', `⏳ Revocation transaction submitted: ${tx.hash}`, 'info');
+                
+                const receipt = await tx.wait();
+                
+                // Update wallet info
+                await updateWalletInfo();
+                
+                Utils.addTransaction({
+                    hash: tx.hash,
+                    from: ownerWallet.address,
+                    to: relayerWallet.address,
+                    type: 'Revoke Relayer',
+                    status: 'confirmed',
+                    gasUsed: receipt.gasUsed.toString()
+                });
+                
+                Utils.showAlert('adminResults', `✅ Relayer revoked successfully! Transaction: ${tx.hash}`, 'success');
+                
+            } catch (error) {
+                Utils.showAlert('adminResults', `❌ Revocation failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function mintTokens() {
+            if (!AppState.isConnected) {
+                Utils.showAlert('adminResults', '❌ Please connect to network first', 'error');
+                return;
+            }
+
+            try {
+                Utils.showSpinner('mintSpinner', true);
+                
+                const ownerPrivateKey = document.getElementById('ownerPrivateKey').value.trim();
+                const userPrivateKey = document.getElementById('userPrivateKey').value.trim();
+                
+                if (!ownerPrivateKey || !Utils.validatePrivateKey(ownerPrivateKey)) {
+                    throw new Error('Invalid owner private key');
+                }
+                
+                if (!userPrivateKey || !Utils.validatePrivateKey(userPrivateKey)) {
+                    throw new Error('Invalid user private key (recipient)');
+                }
+                
+                const ownerWallet = Utils.getWalletFromPrivateKey(ownerPrivateKey).connect(AppState.provider);
+                const userWallet = Utils.getWalletFromPrivateKey(userPrivateKey);
+                
+                // Check if the owner is actually the owner
+                const contractOwner = await AppState.contract.owner();
+                if (ownerWallet.address.toLowerCase() !== contractOwner.toLowerCase()) {
+                    throw new Error('Provided private key is not the contract owner');
+                }
+                
+                const decimals = await AppState.contract.decimals();
+                const mintAmount = Utils.parseTokenAmount('1000', decimals); // Mint 1000 tokens
+                
+                const contractWithOwner = AppState.contract.connect(ownerWallet);
+                const tx = await contractWithOwner.mint(userWallet.address, mintAmount);
+                
+                Utils.showAlert('adminResults', `⏳ Mint transaction submitted: ${tx.hash}`, 'info');
+                
+                const receipt = await tx.wait();
+                
+                // Update wallet info
+                await updateWalletInfo();
+                
+                Utils.addTransaction({
+                    hash: tx.hash,
+                    from: ownerWallet.address,
+                    to: userWallet.address,
+                    amount: '1000',
+                    type: 'Mint Tokens',
+                    status: 'confirmed',
+                    gasUsed: receipt.gasUsed.toString()
+                });
+                
+                Utils.showAlert('adminResults', `✅ Tokens minted successfully! Transaction: ${tx.hash}`, 'success');
+                
+            } catch (error) {
+                Utils.showAlert('adminResults', `❌ Minting failed: ${error.message}`, 'error');
+            } finally {
+                Utils.showSpinner('mintSpinner', false);
+            }
+        }
+
+        // Transaction history
+        function updateTransactionHistory() {
+            const historyDiv = document.getElementById('transactionHistory');
+            
+            if (AppState.transactions.length === 0) {
+                historyDiv.innerHTML = '<p class="text-gray-500">No transactions yet</p>';
+                return;
+            }
+            
+            const historyHTML = AppState.transactions.map(tx => `
+                <div class="card">
+                    <div class="card-header">
+                        <span class="status-indicator status-${tx.status === 'confirmed' ? 'success' : 'warning'}">
+                            ${tx.status === 'confirmed' ? '✅' : '⏳'} ${tx.type}
+                        </span>
+                        <span style="float: right; font-size: 0.75rem; color: var(--gray-500);">
+                            ${new Date(tx.timestamp).toLocaleString()}
+                        </span>
+                    </div>
+                    <div style="font-size: 0.875rem; color: var(--gray-600);">
+                        <strong>Hash:</strong> ${tx.hash}<br>
+                        <strong>From:</strong> ${Utils.formatAddress(tx.from)}<br>
+                        <strong>To:</strong> ${Utils.formatAddress(tx.to)}<br>
+                        ${tx.amount ? `<strong>Amount:</strong> ${tx.amount} tokens<br>` : ''}
+                        ${tx.gasUsed ? `<strong>Gas Used:</strong> ${tx.gasUsed}<br>` : ''}
+                        ${tx.relayer ? `<strong>Relayer:</strong> ${Utils.formatAddress(tx.relayer)}<br>` : ''}
+                    </div>
+                </div>
+            `).join('');
+            
+            historyDiv.innerHTML = historyHTML;
+        }
+
+        // Event listeners and initialization
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set up event listeners for real-time updates
+            document.getElementById('userPrivateKey').addEventListener('input', debounce(updateWalletInfo, 1000));
+            document.getElementById('relayerPrivateKey').addEventListener('input', debounce(updateWalletInfo, 1000));
+            
+            // Initialize transaction history
+            updateTransactionHistory();
+            
+            // Update network info periodically
+            setInterval(async () => {
+                if (AppState.isConnected && AppState.provider) {
+                    try {
+                        const blockNumber = await AppState.provider.getBlockNumber();
+                        if (AppState.networkInfo) {
+                            AppState.networkInfo.blockNumber = blockNumber;
+                            updateNetworkInfo();
+                        }
+                    } catch (error) {
+                        console.error('Error updating block number:', error);
+                    }
+                }
+            }, 15000); // Update every 15 seconds
+        });
+
+        // Utility function for debouncing
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
                 clearTimeout(timeout);
-                func(...args);
+                timeout = setTimeout(later, wait);
             };
-            clearTimeout(timeout);
-            timeout = setTimeout(later, wait);
-        };
-    }
+        }
 
-    // Global error handler
-    window.addEventListener('error', function(event) {
-        console.error('Global error:', event.error);
-        Utils.showAlert('adminResults', `❌ Unexpected error: ${event.error.message}`, 'error');
-    });
+        // Global error handler
+        window.addEventListener('error', function(event) {
+            Utils.showAlert('adminResults', `❌ Unexpected error: ${event.error.message}`, 'error');
+        });
 
-    // Expose utilities for debugging
-    window.AppState = AppState;
-    window.Utils = Utils;
+        // Expose utilities for debugging
+        window.AppState = AppState;
+        window.Utils = Utils;
     </script>
 </body>
 </html>

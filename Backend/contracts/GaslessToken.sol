@@ -19,8 +19,16 @@ contract GaslessToken is ERC20, Ownable, ReentrancyGuard, EIP712 {
         "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
     );
     
+    // NEW: Gasless POL transfer typehash
+    bytes32 private constant GASLESS_POL_TRANSFER_TYPEHASH = keccak256(
+        "GaslessPOLTransfer(address from,address to,uint256 amount,uint256 nonce,uint256 deadline)"
+    );
+    
     mapping(address => uint256) private _nonces;
     mapping(address => bool) public authorizedRelayers;
+    
+    // NEW: Track POL balances for gasless transfers
+    mapping(address => uint256) public polBalances;
     
     // Add context storage for meta-transactions
     address private _msgSenderOverride;
@@ -35,10 +43,22 @@ contract GaslessToken is ERC20, Ownable, ReentrancyGuard, EIP712 {
     event RelayerAuthorized(address indexed relayer);
     event RelayerRevoked(address indexed relayer);
     
+    // NEW: Event for gasless POL transfer
+    event GaslessPOLTransferExecuted(
+        address indexed from,
+        address indexed to,
+        address indexed relayer,
+        uint256 amount,
+        uint256 nonce
+    );
+    
     error InvalidSignature();
     error InvalidNonce();
     error UnauthorizedRelayer();
     error ExecutionFailed();
+    error ExpiredDeadline();
+    error InsufficientBalance();
+    error TransferFailed();
     
     constructor(
         string memory name,
@@ -116,6 +136,105 @@ contract GaslessToken is ERC20, Ownable, ReentrancyGuard, EIP712 {
         );
         
         return returnData;
+    }
+    
+    // NEW: Gasless POL Transfer Function
+    function executeGaslessPOLTransfer(
+        address from,
+        address to,
+        uint256 amount,
+        uint256 deadline,
+        bytes32 sigR,
+        bytes32 sigS,
+        uint8 sigV
+    ) external nonReentrant {
+        if (!authorizedRelayers[msg.sender]) {
+            revert UnauthorizedRelayer();
+        }
+        
+        if (block.timestamp > deadline) {
+            revert ExpiredDeadline();
+        }
+        
+        if (polBalances[from] < amount) {
+            revert InsufficientBalance();
+        }
+        
+        uint256 nonce = _nonces[from];
+        
+        bytes32 structHash = keccak256(
+            abi.encode(
+                GASLESS_POL_TRANSFER_TYPEHASH,
+                from,
+                to,
+                amount,
+                nonce,
+                deadline
+            )
+        );
+        
+        bytes32 digest = _hashTypedDataV4(structHash);
+        address signer = digest.recover(abi.encodePacked(sigR, sigS, sigV));
+        
+        if (signer != from) {
+            revert InvalidSignature();
+        }
+        
+        _nonces[from] = nonce + 1;
+        
+        // Execute the POL transfer
+        polBalances[from] -= amount;
+        polBalances[to] += amount;
+        
+        // Send POL to the recipient
+        (bool success, ) = payable(to).call{value: amount}("");
+        if (!success) {
+            revert TransferFailed();
+        }
+        
+        emit GaslessPOLTransferExecuted(from, to, msg.sender, amount, nonce);
+    }
+    
+    // NEW: Deposit POL function
+    function depositPOL() external payable {
+        polBalances[msg.sender] += msg.value;
+    }
+    
+    // NEW: Withdraw POL function
+    function withdrawPOL(uint256 amount) external {
+        require(polBalances[msg.sender] >= amount, "Insufficient balance");
+        
+        polBalances[msg.sender] -= amount;
+        
+        (bool success, ) = payable(msg.sender).call{value: amount}("");
+        require(success, "Transfer failed");
+    }
+    
+    // NEW: Get POL balance
+    function getPOLBalance(address user) external view returns (uint256) {
+        return polBalances[user];
+    }
+    
+    // NEW: Helper function to get gasless POL transfer hash
+    function getGaslessPOLTransferHash(
+        address from,
+        address to,
+        uint256 amount,
+        uint256 nonce,
+        uint256 deadline
+    ) external view returns (bytes32) {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                GASLESS_POL_TRANSFER_TYPEHASH,
+                from,
+                to,
+                amount,
+                nonce,
+                deadline
+            )
+        );
+        
+        return _hashTypedDataV4(structHash);
     }
     
     function DOMAIN_SEPARATOR() external view returns (bytes32) {
@@ -260,4 +379,10 @@ contract GaslessToken is ERC20, Ownable, ReentrancyGuard, EIP712 {
         
         return signer == userAddress;
     }
+    
+    // NEW: Receive function to accept POL deposits
+    receive() external payable {
+        polBalances[msg.sender] += msg.value;
+    }
+    
 } 

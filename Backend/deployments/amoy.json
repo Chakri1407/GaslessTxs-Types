@@ -1,19 +1,19 @@
 {
   "network": "amoy",
   "chainId": 80002,
-  "contractAddress": "0xd699187d5C26Ee6e85B0CEd886AeE676371B4574",
+  "contractAddress": "0x213a4A65da5bDF2BBb4346A058c10dD0566B6503",
   "deployer": "0xe8239aFA5Cc7Ec80d27713A60D2E50facbeA3BC0",
   "relayerAddress": "0xe8239aFA5Cc7Ec80d27713A60D2E50facbeA3BC0",
-  "blockNumber": 23958877,
-  "transactionHash": "0x47607409ec39f89479ee21e0a768e913741df76db423d95325511a1409b2e7bf",
-  "gasUsed": "1815210",
+  "blockNumber": 24058243,
+  "transactionHash": "0x5f6335c8723d1c45ad8189f646d4c43b6ef0335dd41bae6a8272e4310b2ee6ab",
+  "gasUsed": "2171416",
   "effectiveGasPrice": "N/A",
   "contractDetails": {
     "name": "GaslessToken",
     "symbol": "GLT",
     "totalSupply": "1000000000000000000000000",
     "owner": "0xe8239aFA5Cc7Ec80d27713A60D2E50facbeA3BC0",
-    "domainSeparator": "0x215162824b824bcd28c00d889c0ef06efb52b4da135ad35a6e31101f2d41658e"
+    "domainSeparator": "0xe3c763875dcaba280c16308d364c877e585bc219abe7bd79da82eb8fa397add6"
   },
-  "timestamp": "2025-07-16T00:13:23.797Z"
+  "timestamp": "2025-07-18T11:14:09.692Z"
 }
